@@ -21,25 +21,64 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      - name: Ключ подписи из секретов
+        id: key
+        env:
+          MYGUB_KEYSTORE: ${{ secrets.MYGUB_KEYSTORE }}
+          MYGUB_KEYSTORE_PASSWORD: ${{ secrets.MYGUB_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$MYGUB_KEYSTORE" ]; then
+            echo "::warning::Нет секрета MYGUB_KEYSTORE — код проверится, но APK не будет опубликован"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          printf '%s' "$MYGUB_KEYSTORE" | tr -d ' \r\n' | base64 -d > "$RUNNER_TEMP/mygub.keystore"
+          if ! keytool -list -keystore "$RUNNER_TEMP/mygub.keystore" -storepass "$MYGUB_KEYSTORE_PASSWORD" -alias mygub > /dev/null 2>&1; then
+            echo "::error::Ключ не открылся — проверьте секреты MYGUB_KEYSTORE и MYGUB_KEYSTORE_PASSWORD"
+            exit 1
+          fi
+          echo "MYGUB_KEYSTORE_FILE=$RUNNER_TEMP/mygub.keystore" >> "$GITHUB_ENV"
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+
       - name: Сборка
+        env:
+          MYGUB_KEYSTORE_PASSWORD: ${{ secrets.MYGUB_KEYSTORE_PASSWORD }}
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon --stacktrace
+          set -o pipefail
+          ./gradlew assembleRelease --no-daemon 2>&1 | tee build.log
+          if [ -n "$MYGUB_KEYSTORE_FILE" ]; then rm -f "$MYGUB_KEYSTORE_FILE"; fi
+
+      - name: Показать ошибки сборки
+        if: failure()
+        run: |
+          grep -E "^e: |error:|ERROR:|What went wrong|Missing class|R8" -A2 build.log | head -60 | while IFS= read -r line; do
+            echo "::error::$line"
+          done
 
       - name: Переименовать APK
+        if: steps.key.outputs.ok == 'true'
         run: cp app/build/outputs/apk/release/app-release.apk mygub-lite.apk
 
       - name: Сохранить APK в сборке
+        if: steps.key.outputs.ok == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: mygub-lite-apk
           path: mygub-lite.apk
 
       - name: Опубликовать релиз (удобно скачивать с телефона)
+        if: steps.key.outputs.ok == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: lite-${{ github.run_number }}
-          name: MyGub Lite 1.0.${{ github.run_number }}
-          body: "Лёгкая версия MyGub без эффектов и анимаций. Ставится рядом с основным приложением. Скачайте **mygub-lite.apk** ниже."
+          name: MyGub Lite 2.2.${{ github.run_number }}
+          body: "Лёгкая версия MyGub без стекла и анимаций — для старых и слабых телефонов. Все функции основной версии: замены, подгруппы, ДЗ, карта кампуса, виджеты, автообновление. Ставится рядом с основным приложением. Скачайте **mygub-lite.apk** ниже. Если стояла прежняя Lite 1.0 — удалите её один раз перед установкой (сменился ключ подписи)."
           files: mygub-lite.apk
           make_latest: false
+
+      - name: Нет ключа — релиз не опубликован
+        if: steps.key.outputs.ok != 'true'
+        run: |
+          echo "::error::Код собрался, но секрет MYGUB_KEYSTORE не задан — APK не опубликован"
+          exit 1

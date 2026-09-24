@@ -28,23 +28,45 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             val state by vm.state.collectAsState()
-            val dark = isDark(state.prefs.theme)
+            val dark = effectiveDark(com.vadik.raspisanie.data.Edition.effective(state.prefs).style, state.prefs.theme)
             // цвет значков в строке состояния под выбранную тему
             LaunchedEffect(dark) {
                 val style = if (dark) SystemBarStyle.dark(Color.TRANSPARENT)
                 else SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
                 enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
             }
-            AppTheme(state.prefs.theme, state.prefs.dynamicColor) {
+            val ready = state.settings != null && state.onboarding == null
+            LaunchedEffect(ready) { if (ready) maybeAskNotifications() }
+            AppTheme(state.prefs) {
                 AppRoot(state, vm)
             }
         }
+    }
+
+    /** Разрешение на уведомления спрашиваем после настройки группы, а не поверх приветствия. */
+    private var askedNotifications = false
+
+    private fun maybeAskNotifications() {
+        if (askedNotifications) return
+        askedNotifications = true
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED
         ) {
             askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        com.vadik.raspisanie.work.Updater.inForeground = true
+    }
+
+    override fun onStop() {
+        super.onStop()
+        com.vadik.raspisanie.work.Updater.inForeground = false
+        // смена цвета иконки — когда приложение ушло в фон
+        IconSwitcher.apply(this, vm.state.value.prefs)
     }
 
     override fun onResume() {

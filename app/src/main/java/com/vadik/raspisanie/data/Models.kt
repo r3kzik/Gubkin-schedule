@@ -85,6 +85,22 @@ data class Prefs(
     val widgetOpacity: Int = 100,
     /** Тема виджета: system | light | dark */
     val widgetTheme: String = "system",
+    /** Цвет интерфейса: dynamic (обои, Android 12+) или один из пресетов (blue, violet, …). */
+    val accent: String = "dynamic",
+    /** Анимированный «северное сияние» фон. */
+    val animatedBackground: Boolean = true,
+    /** Стиль оформления: glass | night | ios | material */
+    val style: String = "material",
+    /** Скругление углов, % от стандартного для стиля (50–150). */
+    val cornerPercent: Int = 100,
+    /** Плотность стекла, % (50–150): меньше — прозрачнее. */
+    val glassPercent: Int = 100,
+    /** Иконка приложения перекрашивается в цвет интерфейса. */
+    val iconFollowsAccent: Boolean = true,
+    /** Проверять новые версии приложения в фоне. */
+    val autoUpdateCheck: Boolean = true,
+    /** Скачивать и ставить обновление сразу, без вопроса (Android сам подтвердит установку). */
+    val autoInstall: Boolean = false,
 ) {
     /** Пара другой подгруппы (не моей). */
     fun isOtherSubgroup(l: Lesson): Boolean =
@@ -96,6 +112,27 @@ data class Prefs(
     /** Касается ли пара меня (для уведомлений и виджета). */
     fun concernsMe(l: Lesson): Boolean = !isOtherSubgroup(l)
 }
+
+/** Домашнее задание по предмету. */
+data class Homework(
+    val id: String,
+    val subject: String,
+    val text: String,
+    /** К какому дню нужно (null — без срока). */
+    val due: LocalDate?,
+    val done: Boolean = false,
+    val createdAt: Long = 0L,
+)
+
+/** Предмет для вкладки «Предметы». */
+data class SubjectInfo(
+    val name: String,
+    /** Ближайшая будущая пара по этому предмету (дата и время начала), если известна. */
+    val nextDate: LocalDate?,
+    val nextStart: String?,
+    val kinds: List<String>,
+    val teachers: List<String>,
+)
 
 data class Faculty(val id: String, val name: String)
 data class Group(val id: String, val code: String)

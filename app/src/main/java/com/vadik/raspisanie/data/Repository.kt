@@ -48,6 +48,51 @@ class Repository(
         return RefreshResult(fresh, changes.map { it.line })
     }
 
+    // ---------------------------------------------------------------- ДЗ и предметы
+
+    fun homework(): List<Homework> = storage.loadHomework()
+
+    @Synchronized
+    fun upsertHomework(h: Homework): List<Homework> {
+        val list = storage.loadHomework().filter { it.id != h.id } + h
+        storage.saveHomework(list)
+        return list
+    }
+
+    @Synchronized
+    fun deleteHomework(id: String): List<Homework> {
+        val list = storage.loadHomework().filter { it.id != id }
+        storage.saveHomework(list)
+        return list
+    }
+
+    /**
+     * Предметы из сохранённых недель: название, ближайшая пара (после [after]),
+     * типы занятий и преподаватели. Отменённые/перенесённые и чужие подгруппы не считаются.
+     */
+    fun subjects(groupId: String, prefs: Prefs, after: LocalDate = LocalDate.now()): List<SubjectInfo> {
+        data class Occ(val date: LocalDate, val lesson: Lesson)
+        val occ = mutableListOf<Occ>()
+        for (w in storage.allWeeks(groupId)) {
+            for (i in 0L until 7L) {
+                val d = w.monday.plusDays(i)
+                w.lessonsOn(d).forEach { occ += Occ(d, it) }
+            }
+        }
+        return occ.groupBy { it.lesson.subject }.map { (name, list) ->
+            val next = list
+                .filter { it.date.isAfter(after) && !it.lesson.cancelled && !it.lesson.moved && prefs.concernsMe(it.lesson) }
+                .minWithOrNull(compareBy({ it.date }, { timeKey(it.lesson.start) }))
+            SubjectInfo(
+                name = name,
+                nextDate = next?.date,
+                nextStart = next?.lesson?.start,
+                kinds = list.mapNotNull { it.lesson.kind }.distinct(),
+                teachers = list.mapNotNull { it.lesson.teacher }.distinct(),
+            )
+        }.sortedWith(compareBy({ it.nextDate ?: LocalDate.MAX }, { it.name }))
+    }
+
     fun faculties(): List<Faculty> = ScheduleParser.parseFaculties(source.facultiesJson())
 
     fun groups(facultyId: String): List<Group> = ScheduleParser.parseGroups(source.groupsJson(facultyId))

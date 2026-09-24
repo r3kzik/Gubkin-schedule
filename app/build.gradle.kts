@@ -9,32 +9,36 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        // Lite — отдельное приложение, ставится рядом с основным
+        // Lite — отдельное лёгкое приложение (без стекла и анимаций), ставится рядом с MyGub
         applicationId = "com.vadik.raspisanie.lite"
         minSdk = 26
         targetSdk = 34
         // номер сборки GitHub -> новая версия ставится поверх старой
         versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
-        versionName = "lite-1.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
+        versionName = "lite-2.2." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
     }
 
-    // Один постоянный ключ подписи: обновления устанавливаются поверх, настройки не теряются.
+    // Ключ подписи MyGub хранится только в секретах GitHub (MYGUB_KEYSTORE), в репозитории его нет.
+    // Без ключа релиз не соберётся — так никто не выпустит «официальную» сборку от имени автора.
+    val keystorePath = System.getenv("MYGUB_KEYSTORE_FILE")
     signingConfigs {
-        create("shared") {
-            storeFile = file("raspisanie.keystore")
-            storePassword = "raspisanie"
-            keyAlias = "raspisanie"
-            keyPassword = "raspisanie"
+        if (keystorePath != null) {
+            create("mygub") {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("MYGUB_KEYSTORE_PASSWORD")
+                keyAlias = "mygub"
+                keyPassword = System.getenv("MYGUB_KEYSTORE_PASSWORD")
+            }
         }
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("shared")
-        }
-        debug {
-            signingConfig = signingConfigs.getByName("shared")
+            // R8: сжатие и запутывание кода — разобрать и переделать APK заметно труднее
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (keystorePath != null) signingConfig = signingConfigs.getByName("mygub")
         }
     }
 

@@ -18,6 +18,7 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        com.vadik.raspisanie.data.Edition.init(this)
         api = GubkinApi(File(filesDir, "cookies.txt"))
         repo = Repository(api, Storage(File(filesDir, "schedule")))
         Notifier.createChannels(this)
