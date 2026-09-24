@@ -106,7 +106,7 @@ private val DAY_FULL = listOf("Понедельник", "Вторник", "Ср�
 private val DM: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM")
 private val DM_HM: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM в HH:mm")
 
-private enum class Screen(val depth: Int) { Loading(0), Main(0), Picker(1), ThemeEditor(1), Detail(2) }
+private enum class Screen(val depth: Int) { Loading(0), Onboarding(0), Main(0), Picker(1), ThemeEditor(1), Detail(2) }
 
 private val TABS = listOf(
     TabItem("Расписание", Icons.Filled.DateRange),
@@ -119,6 +119,7 @@ fun AppRoot(state: UiState, vm: MainViewModel) {
     val settings = state.settings
     val screen = when {
         state.starting -> Screen.Loading
+        state.onboarding != null -> Screen.Onboarding
         state.picker != null || settings == null -> Screen.Picker
         state.detail != null -> Screen.Detail
         state.showThemeEditor -> Screen.ThemeEditor
@@ -161,6 +162,7 @@ fun AppRoot(state: UiState, vm: MainViewModel) {
                     ThemeEditorScreen(state, vm)
                 }
                 Screen.Main -> MainTabs(state, vm)
+                Screen.Onboarding -> state.onboarding?.let { OnboardingScreen(it, vm) }
             }
         }
     }

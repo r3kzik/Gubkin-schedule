@@ -35,10 +35,20 @@ class MainActivity : ComponentActivity() {
                 else SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
                 enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
             }
+            val ready = state.settings != null && state.onboarding == null
+            LaunchedEffect(ready) { if (ready) maybeAskNotifications() }
             AppTheme(state.prefs) {
                 AppRoot(state, vm)
             }
         }
+    }
+
+    /** Разрешение на уведомления спрашиваем после настройки группы, а не поверх приветствия. */
+    private var askedNotifications = false
+
+    private fun maybeAskNotifications() {
+        if (askedNotifications) return
+        askedNotifications = true
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED

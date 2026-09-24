@@ -44,6 +44,18 @@ data class CaptchaState(
     val error: String? = null,
 )
 
+/** Первый запуск: привет → факультет → группа → подгруппа. */
+data class OnboardingState(
+    val step: Int = 0,
+    val loading: Boolean = false,
+    val message: String? = null,
+    val faculties: List<Faculty> = emptyList(),
+    val faculty: Faculty? = null,
+    val groups: List<Group> = emptyList(),
+    val group: Group? = null,
+    val subgroup: Int = 0,
+)
+
 /** Черновик домашнего задания в редакторе. */
 data class HomeworkDraft(
     val id: String?,
@@ -80,6 +92,7 @@ data class UiState(
     val homework: List<Homework> = emptyList(),
     val subjects: List<SubjectInfo> = emptyList(),
     val hwDraft: HomeworkDraft? = null,
+    val onboarding: OnboardingState? = null,
 ) {
     val monday: LocalDate get() = Repository.mondayOf(selectedDate)
 }
@@ -105,7 +118,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _state.update { it.copy(prefs = prefs, homework = hw) }
             if (s == null) {
                 _state.update { it.copy(starting = false) }
-                autoSetup()
+                startOnboarding()
             } else {
                 _state.update { it.copy(starting = false, settings = s) }
                 showWeek(LocalDate.now())
@@ -246,6 +259,77 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 handleError(e) { openPicker() }
             }
         }
+    }
+
+    // ------------------------------------------------------------ первый запуск
+
+    private fun startOnboarding() {
+        _state.update { it.copy(onboarding = OnboardingState()) }
+        loadOnboardingFaculties() // список грузим заранее, пока человек читает приветствие
+    }
+
+    private fun loadOnboardingFaculties() {
+        _state.update { it.copy(onboarding = it.onboarding?.copy(loading = true, message = null)) }
+        viewModelScope.launch {
+            try {
+                val list = withContext(Dispatchers.IO) { repo.faculties() }
+                _state.update { it.copy(onboarding = it.onboarding?.copy(loading = false, faculties = list)) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(onboarding = it.onboarding?.copy(loading = false, message = "Не удалось загрузить список факультетов"))
+                }
+                if (e is CaptchaRequiredException) handleError(e) { loadOnboardingFaculties() }
+            }
+        }
+    }
+
+    fun onboardingRetry() = loadOnboardingFaculties()
+
+    fun onboardingNext() = _state.update { st ->
+        st.copy(onboarding = st.onboarding?.let { it.copy(step = it.step + 1) })
+    }
+
+    fun onboardingBack() = _state.update { st ->
+        st.copy(onboarding = st.onboarding?.let { it.copy(step = (it.step - 1).coerceAtLeast(0)) })
+    }
+
+    fun onboardingFaculty(f: Faculty) {
+        _state.update { st ->
+            st.copy(onboarding = st.onboarding?.copy(faculty = f, groups = emptyList(), group = null, step = 2, loading = true, message = null))
+        }
+        viewModelScope.launch {
+            try {
+                val groups = withContext(Dispatchers.IO) { repo.groups(f.id) }
+                _state.update { it.copy(onboarding = it.onboarding?.copy(loading = false, groups = groups)) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(onboarding = it.onboarding?.copy(loading = false, message = "Не удалось загрузить группы"))
+                }
+                if (e is CaptchaRequiredException) handleError(e) { onboardingFaculty(f) }
+            }
+        }
+    }
+
+    fun onboardingGroup(g: Group) = _state.update { st ->
+        st.copy(onboarding = st.onboarding?.copy(group = g, step = 3))
+    }
+
+    fun onboardingSubgroup(n: Int) = _state.update { st ->
+        st.copy(onboarding = st.onboarding?.copy(subgroup = n))
+    }
+
+    fun finishOnboarding() {
+        val ob = _state.value.onboarding ?: return
+        val g = ob.group ?: return
+        val settings = Settings(g.id, g.code, ob.faculty?.name.orEmpty())
+        val prefs = _state.value.prefs.copy(subgroup = ob.subgroup)
+        _state.update { it.copy(onboarding = null, prefs = prefs) }
+        viewModelScope.launch(Dispatchers.IO) { repo.savePrefs(prefs) }
+        applyGroup(settings)
     }
 
     fun retryPicker() = if (_state.value.settings == null) autoSetup() else openPicker()
