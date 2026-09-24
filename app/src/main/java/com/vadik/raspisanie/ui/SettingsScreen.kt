@@ -73,9 +73,10 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
         Column(
             Modifier
                 .fillMaxSize()
+                .fadeEdges(40f, 70f)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 14.dp)
-                .padding(bottom = 16.dp),
+                .padding(bottom = 32.dp),
         ) {
             // ---------------- оформление
             SectionTitle("Оформление")
@@ -148,7 +149,7 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
             // ---------------- виджет
             SectionTitle("Виджет")
             SettingsCard {
-                Hint("Добавить: долгое нажатие на рабочем столе → Виджеты → «MyGub».")
+                Hint("Добавить: долгое нажатие на рабочем столе → Виджеты → MyGub. Виджетов четыре: расписание 4×2, пары дня 2×3, следующая пара 2×2 и полоска 1×3.")
                 var opacity by remember(prefs.widgetOpacity) { mutableFloatStateOf(prefs.widgetOpacity.toFloat()) }
                 Label("Непрозрачность фона: ${opacity.roundToInt()} %")
                 Slider(

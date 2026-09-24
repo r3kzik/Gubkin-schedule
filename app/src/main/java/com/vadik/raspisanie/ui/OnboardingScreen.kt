@@ -251,8 +251,8 @@ private fun FacultyStep(ob: OnboardingState, vm: MainViewModel) {
                 SearchField(query, "Поиск факультета") { query = it }
                 val list = ob.faculties.filter { it.name.contains(query.trim(), ignoreCase = true) }
                 LazyColumn(
-                    Modifier.fillMaxSize().fadeTopEdge(30f),
-                    contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 24.dp),
+                    Modifier.fillMaxSize().fadeEdges(40f, 70f),
+                    contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 32.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     items(list, key = { it.id }) { f ->
@@ -294,8 +294,8 @@ private fun GroupStep(ob: OnboardingState, vm: MainViewModel) {
                 val list = ob.groups.filter { Repository.normalizeCode(it.code).contains(q) }
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(140.dp),
-                    modifier = Modifier.fillMaxSize().fadeTopEdge(30f),
-                    contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 24.dp),
+                    modifier = Modifier.fillMaxSize().fadeEdges(40f, 70f),
+                    contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 32.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {

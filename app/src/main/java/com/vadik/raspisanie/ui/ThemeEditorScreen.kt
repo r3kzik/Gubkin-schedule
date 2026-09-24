@@ -59,16 +59,18 @@ import kotlin.math.roundToInt
 fun ThemeEditorScreen(state: UiState, vm: MainViewModel) {
     val prefs = state.prefs
     val cs = MaterialTheme.colorScheme
-    val glassy = prefs.style == "glass" || prefs.style == "night"
+    val glassy = prefs.style == "glass" || prefs.style == "night" || prefs.style == "gradient"
     Column(Modifier.fillMaxSize()) {
         GlassTopBar("Редактор темы", onBack = { vm.closeThemeEditor() })
         Column(
             Modifier
                 .fillMaxSize()
+                .fadeEdges(40f, 70f)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 14.dp)
+                .padding(top = 12.dp)
                 .navigationBarsPadding()
-                .padding(bottom = 24.dp),
+                .padding(bottom = 32.dp),
         ) {
             // ---------------- живой предпросмотр текущей темы
             SamplePreview(state.settings?.groupName ?: "КВ-26-02")
@@ -118,9 +120,44 @@ fun ThemeEditorScreen(state: UiState, vm: MainViewModel) {
                     }
                 }
                 Divider()
+                Label("Тёмные")
+                FlowRow(
+                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Accents.dark.forEach { a ->
+                        val c = Color(a.seed)
+                        ColorDot(
+                            Brush.linearGradient(listOf(c, c.copy(alpha = 0.85f))),
+                            selected = prefs.accent == a.id,
+                            label = a.title,
+                        ) { vm.updatePrefs { it.copy(accent = a.id) } }
+                    }
+                }
+                Divider()
+                Label("Pantone · цвета года")
+                FlowRow(
+                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Accents.pantone.forEach { a ->
+                        val c = Color(a.seed)
+                        ColorDot(
+                            Brush.linearGradient(listOf(c, c.copy(alpha = 0.75f))),
+                            selected = prefs.accent == a.id,
+                            label = a.title.substringBefore(" ·"),
+                        ) { vm.updatePrefs { it.copy(accent = a.id) } }
+                    }
+                }
+                Accents.pantone.firstOrNull { it.id == prefs.accent }?.let {
+                    Hint("Выбран: ${it.title.substringAfter("· ")} — цвет года Pantone ${it.title.substringBefore(" ·")}")
+                }
+                Divider()
                 Label("Режим")
-                if (prefs.style == "night") {
-                    Hint("«Ночное стекло» всегда тёмное.")
+                if (prefs.style == "night" || prefs.style == "amoled") {
+                    Hint("Этот стиль всегда тёмный.")
                 } else {
                     Pills(
                         listOf("system" to "Как в системе", "light" to "Светлая", "dark" to "Тёмная"),

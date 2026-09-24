@@ -47,6 +47,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -86,6 +87,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.vadik.raspisanie.data.Campus
 import com.vadik.raspisanie.data.Homework
 import com.vadik.raspisanie.data.Lesson
 import androidx.compose.material.icons.filled.DateRange
@@ -104,6 +106,8 @@ import kotlin.math.sin
 private val DAY_NAMES = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
 private val DAY_FULL = listOf("Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье")
 private val DM: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM")
+/** «пятница, 25 сентября» */
+private val HEADER_DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("EEEE, d MMMM", java.util.Locale.forLanguageTag("ru"))
 private val DM_HM: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM в HH:mm")
 
 private enum class Screen(val depth: Int) { Loading(0), Onboarding(0), Main(0), Picker(1), ThemeEditor(1), Detail(2) }
@@ -111,6 +115,7 @@ private enum class Screen(val depth: Int) { Loading(0), Onboarding(0), Main(0), 
 private val TABS = listOf(
     TabItem("Расписание", Icons.Filled.DateRange),
     TabItem("Предметы", Icons.Filled.Edit),
+    TabItem("Карта", Icons.Filled.Place),
     TabItem("Настройки", Icons.Filled.Settings),
 )
 
@@ -187,7 +192,8 @@ private fun MainTabs(state: UiState, vm: MainViewModel) {
         ) { t ->
             when (t) {
                 1 -> SubjectsScreen(state, vm)
-                2 -> SettingsScreen(state, vm)
+                2 -> MapScreen(state, vm)
+                3 -> SettingsScreen(state, vm)
                 else -> ScheduleScreen(state, vm)
             }
         }
@@ -223,34 +229,51 @@ fun ScheduleScreen(state: UiState, vm: MainViewModel) {
     } else 0f
 
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
-        // ---------------- шапка
+        // ---------------- шапка: сегодняшняя дата крупно, группа мелко под ней
         Row(
-            Modifier.fillMaxWidth().padding(start = 22.dp, end = 16.dp, top = 14.dp, bottom = 12.dp),
+            Modifier.fillMaxWidth().padding(start = 20.dp, end = 14.dp, top = 8.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
-                Text(
-                    settings.groupName,
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        today.format(HEADER_DATE).replaceFirstChar { it.uppercase() },
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                    )
+                    // тестовая сборка помечена, чтобы не путать с основной
+                    if (androidx.compose.ui.platform.LocalContext.current.packageName.endsWith(".beta")) {
+                        Text(
+                            "BETA",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = cs.onTertiary,
+                            modifier = Modifier
+                                .padding(start = 8.dp)
+                                .clip(RoundedCornerShape(50))
+                                .background(cs.tertiary)
+                                .padding(horizontal = 7.dp, vertical = 1.dp),
+                        )
+                    }
+                }
                 val sub = listOfNotNull(
-                    state.week?.weekTypeLabel?.replaceFirstChar { it.uppercase() } ?: "Расписание занятий",
-                    if (state.prefs.subgroup != 0) "${state.prefs.subgroup} подгруппа" else null,
+                    settings.groupName,
+                    state.week?.weekTypeLabel,
+                    if (state.prefs.subgroup != 0) "${state.prefs.subgroup} подгр." else null,
                 ).joinToString(" · ")
-                Text(sub, style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
+                Text(sub, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant, maxLines = 1)
             }
-            GlassIconButton(Icons.Filled.Refresh, "Обновить", iconRotation = spin) { vm.refresh() }
+            GlassIconButton(Icons.Filled.Refresh, "Обновить", size = 38.dp, iconRotation = spin) { vm.refresh() }
         }
 
         // ---------------- неделя и дни
         GlassCard(
             Modifier.padding(horizontal = 14.dp).fillMaxWidth(),
-            shape = skinShape(30),
+            shape = skinShape(26),
             strong = true,
         ) {
-            Column(Modifier.padding(horizontal = 6.dp, vertical = 6.dp)) {
+            Column(Modifier.padding(horizontal = 4.dp, vertical = 2.dp)) {
                 WeekHeader(
                     monday = monday,
                     isCurrentWeek = today in days,
@@ -289,25 +312,15 @@ fun ScheduleScreen(state: UiState, vm: MainViewModel) {
         }
 
         // ---------------- пары
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(4.dp))
         // верх списка плавно растворяется, а не обрезается под карточкой с днями
         HorizontalPager(
             state = pagerState,
-            modifier = Modifier.weight(1f).fillMaxWidth().fadeTopEdge(),
+            modifier = Modifier.weight(1f).fillMaxWidth().fadeEdges(40f, 70f),
         ) { page ->
-            DayPage(days[page], today, state.week, state.refreshing, state.prefs, state.homework) { d, l -> vm.openLesson(d, l) }
+            DayPage(days[page], today, state.week, state.refreshing, state.prefs, state.homework, updatedText(state.week?.fetchedAt), onWhere = { vm.showOnMap(it.room) }) { d, l -> vm.openLesson(d, l) }
         }
 
-        val fetched = state.week?.fetchedAt
-        Text(
-            text = if (fetched != null && fetched > 0) {
-                "Обновлено " + Instant.ofEpochMilli(fetched).atZone(ZoneId.systemDefault()).format(DM_HM)
-            } else "Ещё не загружено",
-            style = MaterialTheme.typography.labelSmall,
-            color = cs.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        )
     }
 }
 
@@ -319,7 +332,7 @@ private fun WeekHeader(
     onNext: () -> Unit,
     onToday: () -> Unit,
 ) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().height(40.dp), verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onPrev) {
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Предыдущая неделя")
         }
@@ -335,7 +348,7 @@ private fun WeekHeader(
             ) { m ->
                 Text(
                     "${m.format(DM)} – ${m.plusDays(6).format(DM)}",
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
@@ -372,7 +385,7 @@ private fun DayStrip(
             Modifier
                 .offset(x = x)
                 .width(cell)
-                .height(66.dp)
+                .height(54.dp)
                 .padding(horizontal = 3.dp)
                 .clip(skinShape(22))
                 .background(Brush.verticalGradient(listOf(cs.primary, cs.primary.copy(alpha = 0.78f)))),
@@ -393,7 +406,7 @@ private fun DayStrip(
                 Column(
                     Modifier
                         .width(cell)
-                        .height(66.dp)
+                        .height(54.dp)
                         .clip(skinShape(22))
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
@@ -405,7 +418,7 @@ private fun DayStrip(
                     Text(DAY_NAMES[i], style = MaterialTheme.typography.labelMedium, color = fg.copy(alpha = 0.85f))
                     Text(
                         d.dayOfMonth.toString(),
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = if (d == today || isSel) FontWeight.Bold else FontWeight.Normal,
                         color = fg,
                     )
@@ -455,6 +468,8 @@ private fun DayPage(
     refreshing: Boolean,
     prefs: Prefs,
     homework: List<Homework>,
+    updated: String,
+    onWhere: (Lesson) -> Unit,
     onOpen: (LocalDate, Lesson) -> Unit,
 ) {
     val title = DAY_FULL[date.dayOfWeek.value - 1] + ", " + date.format(DM) +
@@ -464,12 +479,13 @@ private fun DayPage(
             if (refreshing) "⏳" else "📭",
             title,
             if (refreshing) "Загружаю расписание…" else "Нет сохранённого расписания на эту неделю. Нажмите ⟳ вверху.",
+            updated,
         )
         return
     }
     val lessons = week.lessonsOn(date).filter { prefs.shows(it) }
     if (lessons.isEmpty()) {
-        EmptyState("🎉", title, "Пар нет — можно отдохнуть")
+        EmptyState("🎉", title, "Пар нет — можно отдохнуть", updated)
         return
     }
     // раз в 30 секунд обновляем «идёт сейчас» и прогресс
@@ -485,17 +501,33 @@ private fun DayPage(
         .filter { !it.cancelled && !it.moved && !prefs.isOtherSubgroup(it) && timeKey(it.start) > nowMin }
         .minByOrNull { timeKey(it.start) } else null
 
+    // При открытии сегодняшнего дня сразу прокручиваем к паре, которая идёт сейчас
+    // (или к ближайшей следующей), чтобы не листать вручную.
+    val listState = rememberLazyListState()
+    LaunchedEffect(date, lessons.size) {
+        if (date != today) return@LaunchedEffect
+        val idx = lessons.indexOfFirst { l ->
+            val s = timeKey(l.start)
+            val e = timeKey(l.end.ifBlank { l.start })
+            !l.cancelled && !l.moved && !prefs.isOtherSubgroup(l) && nowMin < e && (nowMin >= s || l == nextStart)
+        }
+        if (idx > 0) {
+            delay(250) // даём карточкам начать появляться
+            listState.animateScrollToItem(idx + 1) // +1 — заголовок дня
+        }
+    }
     LazyColumn(
         Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 20.dp),
+        state = listState,
+        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 40.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
             Text(
                 title,
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(start = 8.dp, bottom = 2.dp),
+                modifier = Modifier.padding(start = 8.dp, bottom = 0.dp),
             )
         }
         itemsIndexed(lessons, key = { i, _ -> "$date-$i" }) { i, l ->
@@ -520,6 +552,7 @@ private fun DayPage(
                 minutesLeft = e - nowMin,
                 nextIn = nextIn,
                 otherSubgroup = other,
+                onWhere = { onWhere(l) },
                 modifier = Modifier.graphicsLayer {
                     alpha = appear.value.coerceIn(0f, 1f)
                     translationY = (1f - appear.value) * 80f
@@ -529,8 +562,23 @@ private fun DayPage(
                 },
             ) { onOpen(date, l) }
         }
+        // «Обновлено …» — в самом конце списка, уезжает вместе с парами
+        item {
+            Text(
+                updated,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            )
+        }
     }
 }
+
+private fun updatedText(fetched: Long?): String =
+    if (fetched != null && fetched > 0) {
+        "Обновлено " + Instant.ofEpochMilli(fetched).atZone(ZoneId.systemDefault()).format(DM_HM)
+    } else "Ещё не загружено"
 
 private fun formatIn(min: Int): String = when {
     min < 60 -> "через $min мин"
@@ -540,7 +588,7 @@ private fun formatIn(min: Int): String = when {
 
 /** Пустой день: большой эмодзи мягко «парит». */
 @Composable
-private fun EmptyState(emoji: String, title: String, text: String) {
+private fun EmptyState(emoji: String, title: String, text: String, updated: String) {
     val inf = rememberInfiniteTransition(label = "float")
     val t by inf.animateFloat(
         0f, (2 * Math.PI).toFloat(),
@@ -561,6 +609,12 @@ private fun EmptyState(emoji: String, title: String, text: String) {
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(14.dp))
+                Text(
+                    updated,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
@@ -590,6 +644,7 @@ private fun LessonCard(
     nextIn: String?,
     otherSubgroup: Boolean,
     modifier: Modifier = Modifier,
+    onWhere: () -> Unit = {},
     onClick: () -> Unit,
 ) {
     val cs = MaterialTheme.colorScheme
@@ -674,6 +729,20 @@ private fun LessonCard(
                             highlight = if (l.roomChanged) red else null,
                             note = l.oldRoom?.let { o -> "было ${o.substringBefore(" - ")}" },
                         )
+                        // где это: корпус и этаж по номеру аудитории → на карту
+                        Campus.locate(it)?.let { loc ->
+                            Text(
+                                "${loc.summary} · на карте ›",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = cs.primary.copy(alpha = alpha),
+                                modifier = Modifier
+                                    .padding(start = 18.dp, bottom = 2.dp)
+                                    .clip(RoundedCornerShape(50))
+                                    .clickable(onClick = onWhere)
+                                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                            )
+                        }
                     }
                     l.teacher?.let {
                         InfoRow(

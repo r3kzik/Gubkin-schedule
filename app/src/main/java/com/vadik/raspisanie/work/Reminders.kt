@@ -18,7 +18,7 @@ import java.time.ZoneId
 object AppSync {
     fun afterDataChange(ctx: Context) {
         runCatching { ReminderScheduler.schedule(ctx) }
-        runCatching { ScheduleWidget.updateAll(ctx) }
+        runCatching { com.vadik.raspisanie.widget.WidgetKit.updateAll(ctx) }
     }
 }
 

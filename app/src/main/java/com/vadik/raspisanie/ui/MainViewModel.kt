@@ -7,7 +7,9 @@ import com.vadik.raspisanie.App
 import com.vadik.raspisanie.data.CaptchaRequiredException
 import com.vadik.raspisanie.data.Faculty
 import com.vadik.raspisanie.data.Change
+import com.vadik.raspisanie.data.Campus
 import com.vadik.raspisanie.data.Group
+import com.vadik.raspisanie.data.RoomLocation
 import com.vadik.raspisanie.data.Homework
 import com.vadik.raspisanie.data.SubjectInfo
 import com.vadik.raspisanie.data.Lesson
@@ -86,13 +88,17 @@ data class UiState(
     val prefs: Prefs = Prefs(),
     val showSettings: Boolean = false,
     val detail: LessonDetail? = null,
-    /** 0 — расписание, 1 — предметы, 2 — настройки. */
+    /** 0 — расписание, 1 — предметы, 2 — карта, 3 — настройки. */
     val tab: Int = 0,
     val showThemeEditor: Boolean = false,
     val homework: List<Homework> = emptyList(),
     val subjects: List<SubjectInfo> = emptyList(),
     val hwDraft: HomeworkDraft? = null,
     val onboarding: OnboardingState? = null,
+    /** Что показать на карте (из расписания: «Где это?»). */
+    val mapFocus: RoomLocation? = null,
+    /** Счётчик, чтобы повторный показ того же места снова запускал анимацию. */
+    val mapFocusSeq: Int = 0,
 ) {
     val monday: LocalDate get() = Repository.mondayOf(selectedDate)
 }
@@ -374,7 +380,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // ------------------------------------------------------------ настройки
 
-    fun openSettings() = selectTab(2)
+    fun openSettings() = selectTab(3)
+
+    /** Показать аудиторию на карте кампуса. */
+    fun showOnMap(room: String?) {
+        val loc = Campus.locate(room) ?: return
+        _state.update { it.copy(mapFocus = loc, mapFocusSeq = it.mapFocusSeq + 1, tab = 2, detail = null) }
+    }
+
+    /** Показать здание на карте (из списка мест). */
+    fun showBuildingOnMap(buildingId: String) {
+        val loc = RoomLocation(Campus.building(buildingId), null, "")
+        _state.update { it.copy(mapFocus = loc, mapFocusSeq = it.mapFocusSeq + 1, tab = 2) }
+    }
     fun closeSettings() = selectTab(0)
 
     fun selectTab(i: Int) {
