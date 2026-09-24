@@ -28,14 +28,14 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             val state by vm.state.collectAsState()
-            val dark = isDark(state.prefs.theme)
+            val dark = effectiveDark(state.prefs.style, state.prefs.theme)
             // цвет значков в строке состояния под выбранную тему
             LaunchedEffect(dark) {
                 val style = if (dark) SystemBarStyle.dark(Color.TRANSPARENT)
                 else SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
                 enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
             }
-            AppTheme(state.prefs.theme, state.prefs.accent) {
+            AppTheme(state.prefs) {
                 AppRoot(state, vm)
             }
         }
@@ -45,6 +45,12 @@ class MainActivity : ComponentActivity() {
         ) {
             askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // смена цвета иконки — когда приложение ушло в фон
+        IconSwitcher.apply(this, vm.state.value.prefs)
     }
 
     override fun onResume() {

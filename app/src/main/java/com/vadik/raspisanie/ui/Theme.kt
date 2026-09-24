@@ -38,6 +38,14 @@ data class GlassColors(
     val base: Color,
     /** Красный для изменений в расписании. */
     val changed: Color,
+    /** Стиль: glass | night | ios | material */
+    val style: String = "glass",
+    /** Однотонный фон без «северного сияния». */
+    val flat: Boolean = false,
+    /** Множитель скругления углов (стиль × настройка пользователя). */
+    val cornerScale: Float = 1f,
+    /** Насколько карточка «проседает» при нажатии. */
+    val pressScale: Float = 0.965f,
 )
 
 val LocalGlass = staticCompositionLocalOf {
@@ -150,45 +158,157 @@ private fun animated(target: ColorScheme): ColorScheme {
         surfaceVariant = a(target.surfaceVariant, "sv"),
         onSurfaceVariant = a(target.onSurfaceVariant, "osv"),
         outlineVariant = a(target.outlineVariant, "ov"),
+        surfaceContainer = a(target.surfaceContainer, "scn"),
+        surfaceContainerHigh = a(target.surfaceContainerHigh, "sch"),
+        surfaceContainerHighest = a(target.surfaceContainerHighest, "schh"),
     )
 }
 
-private fun glassFor(scheme: ColorScheme, dark: Boolean): GlassColors {
-    val p = scheme.primary
-    return if (dark) GlassColors(
-        dark = true,
-        fill = Color.White.copy(alpha = 0.07f),
-        fillStrong = Color.White.copy(alpha = 0.12f),
-        sheen = Color.White.copy(alpha = 0.10f),
-        borderTop = Color.White.copy(alpha = 0.28f),
-        borderBottom = Color.White.copy(alpha = 0.04f),
-        aurora = listOf(p.copy(alpha = 0.55f), scheme.tertiary.copy(alpha = 0.45f), scheme.secondary.copy(alpha = 0.40f)),
-        base = scheme.background,
-        changed = Color(0xFFFF7A7A),
-    ) else GlassColors(
-        dark = false,
-        fill = Color.White.copy(alpha = 0.52f),
-        fillStrong = Color.White.copy(alpha = 0.72f),
-        sheen = Color.White.copy(alpha = 0.45f),
-        borderTop = Color.White.copy(alpha = 0.95f),
-        borderBottom = Color.White.copy(alpha = 0.25f),
-        aurora = listOf(p.copy(alpha = 0.45f), scheme.tertiary.copy(alpha = 0.35f), scheme.secondary.copy(alpha = 0.35f)),
-        base = scheme.background,
-        changed = Color(0xFFD32F2F),
-    )
-}
+/** Все стили оформления приложения. */
+data class StyleInfo(val id: String, val title: String, val description: String)
 
+val STYLES = listOf(
+    StyleInfo("glass", "Жидкое стекло", "Полупрозрачные карточки и живой цветной фон"),
+    StyleInfo("night", "Ночное стекло", "Тёмное дымчатое стекло с неоновым свечением"),
+    StyleInfo("ios", "Как в iOS", "Чистые сгруппированные списки, как в «Настройках» iPhone"),
+    StyleInfo("material", "Material You", "Тональные поверхности в стиле Android 14–15"),
+)
+
+/** Тёмная ли тема с учётом стиля: «Ночное стекло» всегда тёмное. */
 @Composable
-fun AppTheme(mode: String = "system", accent: String = "blue", content: @Composable () -> Unit) {
-    val dark = isDark(mode)
+fun effectiveDark(style: String, mode: String): Boolean = style == "night" || isDark(mode)
+
+/** iOS: нейтральные системные серые вместо тонированных поверхностей. */
+private fun iosNeutral(base: ColorScheme, dark: Boolean): ColorScheme = if (!dark) base.copy(
+    background = Color(0xFFF2F2F7), surface = Color.White, onSurface = Color(0xFF111114),
+    onBackground = Color(0xFF111114), surfaceVariant = Color(0xFFE5E5EA), onSurfaceVariant = Color(0xFF6C6C72),
+    surfaceContainer = Color.White, surfaceContainerHigh = Color.White, surfaceContainerHighest = Color(0xFFF2F2F7),
+    surfaceContainerLow = Color.White, outlineVariant = Color(0xFFD1D1D6),
+) else base.copy(
+    background = Color.Black, surface = Color(0xFF1C1C1E), onSurface = Color(0xFFF2F2F7),
+    onBackground = Color(0xFFF2F2F7), surfaceVariant = Color(0xFF2C2C2E), onSurfaceVariant = Color(0xFF98989F),
+    surfaceContainer = Color(0xFF1C1C1E), surfaceContainerHigh = Color(0xFF2C2C2E), surfaceContainerHighest = Color(0xFF3A3A3C),
+    surfaceContainerLow = Color(0xFF1C1C1E), outlineVariant = Color(0xFF38383A),
+)
+
+/** Ночное стекло: фон почти чёрный с оттенком акцента. */
+private fun nightScheme(base: ColorScheme): ColorScheme {
+    val h = FloatArray(3).also { ColorUtils.colorToHSL(base.primary.toArgb(), it) }[0]
+    val bg = Color(ColorUtils.HSLToColor(floatArrayOf(h, 0.35f, 0.035f)))
+    return base.copy(background = bg, surface = bg, onBackground = Color(0xFFEDEDF4), onSurface = Color(0xFFEDEDF4))
+}
+
+/** Цветовая схема для стиля. */
+@Composable
+fun schemeFor(style: String, dark: Boolean, accent: String): ColorScheme {
     val ctx = LocalContext.current
-    val target = when {
+    val base = when {
         accent == "dynamic" && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
             if (dark) dynamicDarkColorScheme(ctx) else dynamicLightColorScheme(ctx)
         else -> schemeFromSeed(Color(Accents.seedOf(accent)), dark)
     }
-    val scheme = animated(target)
-    CompositionLocalProvider(LocalGlass provides glassFor(scheme, dark)) {
+    return when (style) {
+        "ios" -> iosNeutral(
+            if (accent == "dynamic") base else base.copy(
+                primary = Color(Accents.seedOf(accent)).let { if (dark) lerpToWhite(it, 0.12f) else it },
+                onPrimary = Color.White,
+            ),
+            dark,
+        )
+        "night" -> nightScheme(base)
+        else -> base
+    }
+}
+
+private fun lerpToWhite(c: Color, f: Float): Color =
+    Color(ColorUtils.blendARGB(c.toArgb(), android.graphics.Color.WHITE, f))
+
+/** «Кожа» стиля: заливки карточек, рамки, фон. */
+fun skinFor(style: String, scheme: ColorScheme, dark: Boolean, cornerPercent: Int, glassPercent: Int): GlassColors {
+    val p = scheme.primary
+    val k = glassPercent.coerceIn(50, 150) / 100f
+    val corner = cornerPercent.coerceIn(50, 150) / 100f
+    fun al(x: Float) = (x * k).coerceIn(0f, 1f)
+    return when (style) {
+        "night" -> GlassColors(
+            dark = true,
+            fill = Color(0xFF05060C).copy(alpha = al(0.42f)),
+            fillStrong = Color(0xFF05060C).copy(alpha = al(0.58f)),
+            sheen = Color.White.copy(alpha = 0.06f),
+            borderTop = p.copy(alpha = 0.55f),
+            borderBottom = p.copy(alpha = 0.06f),
+            aurora = listOf(p.copy(alpha = 0.75f), scheme.tertiary.copy(alpha = 0.6f), scheme.secondary.copy(alpha = 0.55f)),
+            base = scheme.background,
+            changed = Color(0xFFFF7A7A),
+            style = "night", cornerScale = corner,
+        )
+        "ios" -> GlassColors(
+            dark = dark,
+            fill = scheme.surface,
+            fillStrong = scheme.surface,
+            sheen = Color.Transparent,
+            borderTop = Color.Transparent,
+            borderBottom = Color.Transparent,
+            aurora = emptyList(),
+            base = scheme.background,
+            changed = if (dark) Color(0xFFFF6961) else Color(0xFFFF3B30),
+            style = "ios", flat = true, cornerScale = 0.62f * corner, pressScale = 0.985f,
+        )
+        "material" -> GlassColors(
+            dark = dark,
+            fill = scheme.surfaceContainerHigh,
+            fillStrong = scheme.surfaceContainerHighest,
+            sheen = Color.Transparent,
+            borderTop = Color.Transparent,
+            borderBottom = Color.Transparent,
+            aurora = emptyList(),
+            base = scheme.surface,
+            changed = if (dark) Color(0xFFFFB4AB) else Color(0xFFBA1A1A),
+            style = "material", flat = true, cornerScale = 0.9f * corner, pressScale = 0.975f,
+        )
+        else -> if (dark) GlassColors(
+            dark = true,
+            fill = Color.White.copy(alpha = al(0.07f)),
+            fillStrong = Color.White.copy(alpha = al(0.12f)),
+            sheen = Color.White.copy(alpha = 0.10f),
+            borderTop = Color.White.copy(alpha = 0.28f),
+            borderBottom = Color.White.copy(alpha = 0.04f),
+            aurora = listOf(p.copy(alpha = 0.55f), scheme.tertiary.copy(alpha = 0.45f), scheme.secondary.copy(alpha = 0.40f)),
+            base = scheme.background,
+            changed = Color(0xFFFF7A7A),
+            style = "glass", cornerScale = corner,
+        ) else GlassColors(
+            dark = false,
+            fill = Color.White.copy(alpha = al(0.52f)),
+            fillStrong = Color.White.copy(alpha = al(0.72f)),
+            sheen = Color.White.copy(alpha = 0.45f),
+            borderTop = Color.White.copy(alpha = 0.95f),
+            borderBottom = Color.White.copy(alpha = 0.25f),
+            aurora = listOf(p.copy(alpha = 0.45f), scheme.tertiary.copy(alpha = 0.35f), scheme.secondary.copy(alpha = 0.35f)),
+            base = scheme.background,
+            changed = Color(0xFFD32F2F),
+            style = "glass", cornerScale = corner,
+        )
+    }
+}
+
+@Composable
+fun AppTheme(prefs: com.vadik.raspisanie.data.Prefs, content: @Composable () -> Unit) {
+    val dark = effectiveDark(prefs.style, prefs.theme)
+    val scheme = animated(schemeFor(prefs.style, dark, prefs.accent))
+    val skin = skinFor(prefs.style, scheme, dark, prefs.cornerPercent, prefs.glassPercent)
+    CompositionLocalProvider(LocalGlass provides skin) {
+        MaterialTheme(colorScheme = scheme, content = content)
+    }
+}
+
+/** Тема для превью другого стиля (в редакторе темы) — без анимаций. */
+@Composable
+fun PreviewTheme(style: String, prefs: com.vadik.raspisanie.data.Prefs, content: @Composable () -> Unit) {
+    val dark = effectiveDark(style, prefs.theme)
+    val scheme = schemeFor(style, dark, prefs.accent)
+    val skin = skinFor(style, scheme, dark, prefs.cornerPercent, prefs.glassPercent)
+    CompositionLocalProvider(LocalGlass provides skin) {
         MaterialTheme(colorScheme = scheme, content = content)
     }
 }

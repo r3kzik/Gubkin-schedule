@@ -51,7 +51,8 @@ private val NOTICED: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM в H
 
 /** Подробности пары: полная информация и что изменилось. */
 @Composable
-fun LessonScreen(detail: LessonDetail, prefs: Prefs, onBack: () -> Unit) {
+fun LessonScreen(detail: LessonDetail, state: UiState, vm: MainViewModel, onBack: () -> Unit) {
+    val prefs = state.prefs
     val l = detail.lesson
     val cs = MaterialTheme.colorScheme
     val red = changedColor()
@@ -155,6 +156,34 @@ fun LessonScreen(detail: LessonDetail, prefs: Prefs, onBack: () -> Unit) {
                 }
             }
 
+            // ---------------- домашнее задание
+            DetailCard {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Домашнее задание",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f),
+                    )
+                    GlassPill("+ Добавить", selected = true) { vm.openHomeworkEditor(l.subject) }
+                }
+                val hw = state.homework.filter { it.subject == l.subject }
+                    .sortedWith(compareBy({ it.done }, { it.due ?: java.time.LocalDate.MAX }))
+                if (hw.isEmpty()) {
+                    Text(
+                        "Заданий по этому предмету нет.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = cs.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                } else {
+                    Spacer(Modifier.height(6.dp))
+                    hw.forEach { h ->
+                        HomeworkRow(h, onToggle = { vm.toggleHomework(h) }, onClick = { vm.openHomeworkEditor(h.subject, h) })
+                    }
+                }
+            }
+
             // ---------------- сырые данные
             if (l.raw != null) {
                 DetailCard {
@@ -191,7 +220,7 @@ fun LessonScreen(detail: LessonDetail, prefs: Prefs, onBack: () -> Unit) {
 
 @Composable
 private fun DetailCard(content: @Composable ColumnScope.() -> Unit) {
-    GlassCard(Modifier.fillMaxWidth(), shape = RoundedCornerShape(28.dp)) {
+    GlassCard(Modifier.fillMaxWidth(), shape = skinShape(28)) {
         Column(Modifier.fillMaxWidth().padding(18.dp), content = content)
     }
 }

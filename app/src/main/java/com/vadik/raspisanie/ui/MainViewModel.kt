@@ -8,6 +8,8 @@ import com.vadik.raspisanie.data.CaptchaRequiredException
 import com.vadik.raspisanie.data.Faculty
 import com.vadik.raspisanie.data.Change
 import com.vadik.raspisanie.data.Group
+import com.vadik.raspisanie.data.Homework
+import com.vadik.raspisanie.data.SubjectInfo
 import com.vadik.raspisanie.data.Lesson
 import com.vadik.raspisanie.data.Prefs
 import com.vadik.raspisanie.data.Repository
@@ -42,6 +44,16 @@ data class CaptchaState(
     val error: String? = null,
 )
 
+/** Черновик домашнего задания в редакторе. */
+data class HomeworkDraft(
+    val id: String?,
+    val subject: String,
+    val text: String,
+    val due: LocalDate?,
+    /** Дата ближайшей пары по предмету — для кнопки «К следующей паре». */
+    val nextLesson: LocalDate?,
+)
+
 /** Открытая карточка пары. */
 data class LessonDetail(
     val date: LocalDate,
@@ -62,6 +74,12 @@ data class UiState(
     val prefs: Prefs = Prefs(),
     val showSettings: Boolean = false,
     val detail: LessonDetail? = null,
+    /** 0 — расписание, 1 — предметы, 2 — настройки. */
+    val tab: Int = 0,
+    val showThemeEditor: Boolean = false,
+    val homework: List<Homework> = emptyList(),
+    val subjects: List<SubjectInfo> = emptyList(),
+    val hwDraft: HomeworkDraft? = null,
 ) {
     val monday: LocalDate get() = Repository.mondayOf(selectedDate)
 }
@@ -83,7 +101,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     init {
         viewModelScope.launch {
             val (s, prefs) = withContext(Dispatchers.IO) { repo.settings() to repo.prefs() }
-            _state.update { it.copy(prefs = prefs) }
+            val hw = withContext(Dispatchers.IO) { repo.homework() }
+            _state.update { it.copy(prefs = prefs, homework = hw) }
             if (s == null) {
                 _state.update { it.copy(starting = false) }
                 autoSetup()
@@ -271,8 +290,79 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // ------------------------------------------------------------ настройки
 
-    fun openSettings() = _state.update { it.copy(showSettings = true) }
-    fun closeSettings() = _state.update { it.copy(showSettings = false) }
+    fun openSettings() = selectTab(2)
+    fun closeSettings() = selectTab(0)
+
+    fun selectTab(i: Int) {
+        _state.update { it.copy(tab = i) }
+        if (i == 1) loadSubjects()
+    }
+
+    fun openThemeEditor() = _state.update { it.copy(showThemeEditor = true) }
+    fun closeThemeEditor() = _state.update { it.copy(showThemeEditor = false) }
+
+    // ------------------------------------------------------------ предметы и ДЗ
+
+    fun loadSubjects() {
+        val s = _state.value.settings ?: return
+        val prefs = _state.value.prefs
+        viewModelScope.launch {
+            val list = withContext(Dispatchers.IO) { repo.subjects(s.groupId, prefs) }
+            _state.update { it.copy(subjects = list) }
+        }
+    }
+
+    /** Открыть редактор ДЗ: новое (existing == null) или правка существующего. */
+    fun openHomeworkEditor(subject: String, existing: Homework? = null) {
+        val s = _state.value.settings
+        viewModelScope.launch {
+            val next = if (s == null) null else withContext(Dispatchers.IO) {
+                repo.subjects(s.groupId, _state.value.prefs).firstOrNull { it.name == subject }?.nextDate
+            }
+            _state.update {
+                it.copy(
+                    hwDraft = HomeworkDraft(
+                        id = existing?.id,
+                        subject = subject,
+                        text = existing?.text.orEmpty(),
+                        due = existing?.due ?: next,
+                        nextLesson = next,
+                    ),
+                )
+            }
+        }
+    }
+
+    fun closeHomeworkEditor() = _state.update { it.copy(hwDraft = null) }
+
+    fun saveHomework(draft: HomeworkDraft) {
+        if (draft.text.isBlank()) return
+        val old = _state.value.homework.firstOrNull { it.id == draft.id }
+        val h = Homework(
+            id = draft.id ?: java.util.UUID.randomUUID().toString(),
+            subject = draft.subject,
+            text = draft.text.trim(),
+            due = draft.due,
+            done = old?.done ?: false,
+            createdAt = old?.createdAt ?: System.currentTimeMillis(),
+        )
+        _state.update { it.copy(hwDraft = null) }
+        viewModelScope.launch {
+            val list = withContext(Dispatchers.IO) { repo.upsertHomework(h) }
+            _state.update { it.copy(homework = list) }
+        }
+    }
+
+    fun toggleHomework(h: Homework) {
+        val upd = h.copy(done = !h.done)
+        _state.update { st -> st.copy(homework = st.homework.map { if (it.id == h.id) upd else it }) }
+        viewModelScope.launch(Dispatchers.IO) { repo.upsertHomework(upd) }
+    }
+
+    fun deleteHomework(id: String) {
+        _state.update { st -> st.copy(homework = st.homework.filter { it.id != id }, hwDraft = null) }
+        viewModelScope.launch(Dispatchers.IO) { repo.deleteHomework(id) }
+    }
 
     fun updatePrefs(change: (Prefs) -> Prefs) {
         val p = change(_state.value.prefs)

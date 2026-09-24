@@ -105,7 +105,7 @@ fun PickerScreen(p: PickerState, canClose: Boolean, vm: MainViewModel) {
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     items(p.faculties, key = { it.id }) { f ->
-                        GlassCard(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp), onClick = { vm.pickFaculty(f) }) {
+                        GlassCard(Modifier.fillMaxWidth(), shape = skinShape(22), onClick = { vm.pickFaculty(f) }) {
                             Text(
                                 f.name,
                                 style = MaterialTheme.typography.bodyLarge,
@@ -122,7 +122,7 @@ fun PickerScreen(p: PickerState, canClose: Boolean, vm: MainViewModel) {
                     onValueChange = { query = it },
                     label = { Text("Поиск, например ${App.DEFAULT_GROUP}") },
                     singleLine = true,
-                    shape = RoundedCornerShape(22.dp),
+                    shape = skinShape(22),
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp),
                 )
@@ -142,7 +142,7 @@ fun PickerScreen(p: PickerState, canClose: Boolean, vm: MainViewModel) {
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     gridItems(filtered, key = { it.id }) { g ->
-                        GlassCard(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), onClick = { vm.pickGroup(g) }) {
+                        GlassCard(Modifier.fillMaxWidth(), shape = skinShape(20), onClick = { vm.pickGroup(g) }) {
                             Text(
                                 g.code,
                                 style = MaterialTheme.typography.titleMedium,

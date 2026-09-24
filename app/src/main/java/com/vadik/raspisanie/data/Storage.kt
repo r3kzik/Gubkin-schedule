@@ -57,6 +57,10 @@ class Storage(private val dir: File) {
             widgetTheme = o["widgetTheme"].str() ?: d.widgetTheme,
             accent = o["accent"].str() ?: d.accent,
             animatedBackground = o["anim"]?.let { it.truthy() } ?: d.animatedBackground,
+            style = o["style"].str() ?: d.style,
+            cornerPercent = o["corner"].int()?.coerceIn(50, 150) ?: d.cornerPercent,
+            glassPercent = o["glassPct"].int()?.coerceIn(50, 150) ?: d.glassPercent,
+            iconFollowsAccent = o["iconAccent"]?.let { it.truthy() } ?: d.iconFollowsAccent,
         )
     } catch (e: Exception) {
         Prefs()
@@ -75,9 +79,54 @@ class Storage(private val dir: File) {
             put("widgetTheme", p.widgetTheme)
             put("accent", p.accent)
             put("anim", p.animatedBackground)
+            put("style", p.style)
+            put("corner", p.cornerPercent)
+            put("glassPct", p.glassPercent)
+            put("iconAccent", p.iconFollowsAccent)
         }
         writeAtomic(prefsFile, o.toString())
     }
+
+    private val homeworkFile get() = File(dir, "homework.json")
+
+    fun loadHomework(): List<Homework> = try {
+        Json.parseToJsonElement(homeworkFile.readText()).arr().orEmpty().mapNotNull { e ->
+            val o = e.obj() ?: return@mapNotNull null
+            Homework(
+                id = o["id"].str() ?: return@mapNotNull null,
+                subject = o["subject"].str().orEmpty(),
+                text = o["text"].str().orEmpty(),
+                due = o["due"].str()?.let { runCatching { LocalDate.parse(it) }.getOrNull() },
+                done = o["done"].truthy(),
+                createdAt = o["at"].str()?.toLongOrNull() ?: 0L,
+            )
+        }
+    } catch (e: Exception) {
+        emptyList()
+    }
+
+    fun saveHomework(items: List<Homework>) {
+        val arr = buildJsonArray {
+            items.forEach { h ->
+                add(buildJsonObject {
+                    put("id", h.id)
+                    put("subject", h.subject)
+                    put("text", h.text)
+                    h.due?.let { put("due", it.toString()) }
+                    put("done", h.done)
+                    put("at", h.createdAt)
+                })
+            }
+        }
+        writeAtomic(homeworkFile, arr.toString())
+    }
+
+    /** Все сохранённые недели группы (для списка предметов и поиска следующей пары). */
+    fun allWeeks(groupId: String): List<WeekSchedule> =
+        dir.listFiles().orEmpty()
+            .filter { it.name.startsWith("week_${groupId}_") && it.name.endsWith(".json") }
+            .mapNotNull { runCatching { decodeWeek(it.readText()) }.getOrNull() }
+            .sortedBy { it.monday }
 
     private val historyFile get() = File(dir, "history.json")
 

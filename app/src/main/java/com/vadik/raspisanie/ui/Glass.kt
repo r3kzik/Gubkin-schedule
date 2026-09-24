@@ -16,7 +16,14 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -43,6 +50,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -70,6 +80,10 @@ fun AuroraBackground(animated: Boolean, content: @Composable BoxScope.() -> Unit
             label = "phase",
         )
     } else null
+    if (g.flat) {
+        Box(Modifier.fillMaxSize().background(g.base), content = content)
+        return
+    }
     Box(
         Modifier
             .fillMaxSize()
@@ -102,38 +116,60 @@ fun AuroraBackground(animated: Boolean, content: @Composable BoxScope.() -> Unit
 /** Модификатор «матового стекла»: полупрозрачная заливка, блик сверху, светлая рамка. */
 fun Modifier.glass(
     g: GlassColors,
-    shape: Shape = RoundedCornerShape(24.dp),
+    shape: Shape,
     strong: Boolean = false,
     tint: Color? = null,
 ): Modifier = this
     .clip(shape)
     .background(if (strong) g.fillStrong else g.fill)
     .then(if (tint != null) Modifier.background(tint) else Modifier)
-    .background(Brush.verticalGradient(listOf(g.sheen, Color.Transparent), endY = 220f))
-    .border(1.dp, Brush.verticalGradient(listOf(g.borderTop, g.borderBottom)), shape)
+    .then(
+        if (g.sheen.alpha > 0f) Modifier.background(Brush.verticalGradient(listOf(g.sheen, Color.Transparent), endY = 220f))
+        else Modifier,
+    )
+    .then(
+        if (g.borderTop.alpha > 0f) Modifier.border(1.dp, Brush.verticalGradient(listOf(g.borderTop, g.borderBottom)), shape)
+        else Modifier,
+    )
+
+/** Скругление с учётом стиля и настройки «скругление углов». */
+@Composable
+fun skinShape(base: Int): Shape = RoundedCornerShape((base * LocalGlass.current.cornerScale).dp)
+
+/** Плавное растворение верхнего края прокручиваемого списка (вместо резкого обреза). */
+fun Modifier.fadeTopEdge(fadePx: Float = 60f): Modifier = this
+    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+    .drawWithContent {
+        drawContent()
+        drawRect(
+            brush = Brush.verticalGradient(0f to Color.Transparent, fadePx / size.height.coerceAtLeast(1f) to Color.Black),
+            blendMode = BlendMode.DstIn,
+        )
+    }
 
 /** Стеклянная карточка; при нажатии слегка «проседает» с пружинкой. */
 @Composable
 fun GlassCard(
     modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(26.dp),
+    shape: Shape? = null,
     strong: Boolean = false,
     tint: Color? = null,
     onClick: (() -> Unit)? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val g = LocalGlass.current
+    val sh = shape ?: skinShape(26)
     val src = remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        if (pressed) 0.965f else 1f,
+        if (pressed) g.pressScale else 1f,
         spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
         label = "press",
     )
     Box(
         modifier
             .graphicsLayer { scaleX = scale; scaleY = scale }
-            .glass(g, shape, strong, tint)
+            .glass(g, sh, strong, tint)
             .then(if (onClick != null) Modifier.clickable(interactionSource = src, indication = null, onClick = onClick) else Modifier),
         content = content,
     )
@@ -217,3 +253,98 @@ fun SectionTitle(text: String) {
 /** Цвет для изменённых данных (замена аудитории/преподавателя). */
 @Composable
 fun changedColor(): Color = LocalGlass.current.changed
+
+// ============================================================ нижняя панель вкладок
+
+data class TabItem(val title: String, val icon: ImageVector)
+
+/**
+ * Панель вкладок в духе выбранного стиля:
+ * стекло — парящая «пилюля» с переезжающим выделением, iOS — полоса с тонкой линией сверху,
+ * Material — стандартная NavigationBar.
+ */
+@Composable
+fun StyledTabBar(items: List<TabItem>, selected: Int, onSelect: (Int) -> Unit) {
+    val g = LocalGlass.current
+    val cs = MaterialTheme.colorScheme
+    when (g.style) {
+        "material" -> androidx.compose.material3.NavigationBar(containerColor = cs.surfaceContainer) {
+            items.forEachIndexed { i, item ->
+                androidx.compose.material3.NavigationBarItem(
+                    selected = i == selected,
+                    onClick = { onSelect(i) },
+                    icon = { Icon(item.icon, contentDescription = item.title) },
+                    label = { Text(item.title) },
+                )
+            }
+        }
+
+        "ios" -> Column(Modifier.fillMaxWidth().background(cs.surface.copy(alpha = 0.94f))) {
+            Box(Modifier.fillMaxWidth().height(0.5.dp).background(cs.outlineVariant))
+            Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(top = 6.dp, bottom = 4.dp)) {
+                items.forEachIndexed { i, item ->
+                    val c by androidx.compose.animation.animateColorAsState(
+                        if (i == selected) cs.primary else cs.onSurfaceVariant, tween(200), label = "tab",
+                    )
+                    Column(
+                        Modifier
+                            .weight(1f)
+                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onSelect(i) },
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Icon(item.icon, contentDescription = item.title, tint = c, modifier = Modifier.size(26.dp))
+                        Text(item.title, style = MaterialTheme.typography.labelSmall, color = c)
+                    }
+                }
+            }
+        }
+
+        else -> Box(
+            Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(start = 28.dp, end = 28.dp, bottom = 10.dp, top = 4.dp),
+        ) {
+            GlassCard(Modifier.fillMaxWidth().height(64.dp), shape = RoundedCornerShape(50), strong = true) {
+                BoxWithConstraints(Modifier.fillMaxSize().padding(6.dp)) {
+                    val cell = maxWidth / items.size
+                    val x by androidx.compose.animation.core.animateDpAsState(
+                        cell * selected, spring(dampingRatio = 0.72f, stiffness = 380f), label = "tabInd",
+                    )
+                    Box(
+                        Modifier
+                            .offset(x = x)
+                            .width(cell)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(50))
+                            .background(cs.primary.copy(alpha = if (g.dark) 0.30f else 0.16f)),
+                    )
+                    Row(Modifier.fillMaxSize()) {
+                        items.forEachIndexed { i, item ->
+                            val c by androidx.compose.animation.animateColorAsState(
+                                if (i == selected) cs.primary else cs.onSurfaceVariant, tween(200), label = "tab",
+                            )
+                            Column(
+                                Modifier
+                                    .width(cell)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(50))
+                                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onSelect(i) },
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
+                            ) {
+                                Icon(item.icon, contentDescription = item.title, tint = c, modifier = Modifier.size(22.dp))
+                                Text(
+                                    item.title,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = c,
+                                    fontWeight = if (i == selected) FontWeight.Bold else FontWeight.Normal,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

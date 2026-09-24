@@ -68,57 +68,21 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
     val ctx = LocalContext.current
     val cs = MaterialTheme.colorScheme
     Column(Modifier.fillMaxSize()) {
-        GlassTopBar("Настройки", onBack = { vm.closeSettings() })
+        GlassTopBar("Настройки", onBack = null)
         Column(
             Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 14.dp)
-                .navigationBarsPadding()
-                .padding(bottom = 24.dp),
+                .padding(bottom = 16.dp),
         ) {
             // ---------------- оформление
             SectionTitle("Оформление")
             SettingsCard {
-                Label("Цвет интерфейса")
-                FlowRow(
-                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        ColorDot(
-                            Brush.sweepGradient(
-                                listOf(
-                                    Color(0xFFFF5A5F), Color(0xFFF5B301), Color(0xFF22B573),
-                                    Color(0xFF2FA8F5), Color(0xFF7C5CFF), Color(0xFFFF5A5F),
-                                ),
-                            ),
-                            selected = prefs.accent == "dynamic",
-                            label = "Обои",
-                        ) { vm.updatePrefs { it.copy(accent = "dynamic") } }
-                    }
-                    Accents.presets.forEach { a ->
-                        val c = Color(a.seed)
-                        ColorDot(
-                            Brush.linearGradient(listOf(c, c.copy(alpha = 0.7f))),
-                            selected = prefs.accent == a.id,
-                            label = a.title,
-                        ) { vm.updatePrefs { it.copy(accent = a.id) } }
-                    }
-                }
-                Divider()
-                Label("Тема")
-                Pills(
-                    listOf("system" to "Как в системе", "light" to "Светлая", "dark" to "Тёмная"),
-                    prefs.theme,
-                ) { v -> vm.updatePrefs { it.copy(theme = v) } }
-                Divider()
-                SwitchRow(
-                    "Живой фон",
-                    "Плавно переливающиеся цветные пятна за стеклом",
-                    prefs.animatedBackground,
-                ) { v -> vm.updatePrefs { it.copy(animatedBackground = v) } }
+                NavRow(
+                    "Редактор темы",
+                    "${STYLES.firstOrNull { it.id == prefs.style }?.title ?: "Стиль"} · цвет, скругление, иконка",
+                ) { vm.openThemeEditor() }
             }
 
             // ---------------- группа
@@ -226,14 +190,14 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
 }
 
 @Composable
-private fun SettingsCard(content: @Composable () -> Unit) {
-    GlassCard(Modifier.fillMaxWidth(), shape = RoundedCornerShape(28.dp)) {
+internal fun SettingsCard(content: @Composable () -> Unit) {
+    GlassCard(Modifier.fillMaxWidth(), shape = skinShape(28)) {
         Column(Modifier.padding(vertical = 8.dp)) { content() }
     }
 }
 
 @Composable
-private fun Divider() {
+internal fun Divider() {
     HorizontalDivider(
         Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
@@ -241,7 +205,7 @@ private fun Divider() {
 }
 
 @Composable
-private fun Label(text: String) {
+internal fun Label(text: String) {
     Text(
         text,
         style = MaterialTheme.typography.bodyLarge,
@@ -251,7 +215,7 @@ private fun Label(text: String) {
 }
 
 @Composable
-private fun Hint(text: String) {
+internal fun Hint(text: String) {
     Text(
         text,
         style = MaterialTheme.typography.bodySmall,
@@ -262,7 +226,7 @@ private fun Hint(text: String) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun <T> Pills(options: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit) {
+internal fun <T> Pills(options: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit) {
     FlowRow(
         Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -275,7 +239,7 @@ private fun <T> Pills(options: List<Pair<T, String>>, selected: T, onSelect: (T)
 }
 
 @Composable
-private fun SwitchRow(title: String, subtitle: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+internal fun SwitchRow(title: String, subtitle: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -293,7 +257,7 @@ private fun SwitchRow(title: String, subtitle: String, checked: Boolean, onChang
 }
 
 @Composable
-private fun NavRow(title: String, subtitle: String, onClick: () -> Unit) {
+internal fun NavRow(title: String, subtitle: String, onClick: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -315,7 +279,7 @@ private fun NavRow(title: String, subtitle: String, onClick: () -> Unit) {
 
 /** Кружок цвета: выбранный чуть увеличивается с пружинкой и получает галочку. */
 @Composable
-private fun ColorDot(fill: Brush, selected: Boolean, label: String, onClick: () -> Unit) {
+internal fun ColorDot(fill: Brush, selected: Boolean, label: String, onClick: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     val scale by animateFloatAsState(
         if (selected) 1.12f else 1f,

@@ -86,7 +86,10 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.vadik.raspisanie.data.Homework
 import com.vadik.raspisanie.data.Lesson
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Edit
 import com.vadik.raspisanie.data.Prefs
 import com.vadik.raspisanie.data.WeekSchedule
 import com.vadik.raspisanie.data.timeKey
@@ -103,7 +106,13 @@ private val DAY_FULL = listOf("Понедельник", "Вторник", "Ср�
 private val DM: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM")
 private val DM_HM: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM в HH:mm")
 
-private enum class Screen(val depth: Int) { Loading(0), Schedule(0), Picker(1), Settings(1), Detail(2) }
+private enum class Screen(val depth: Int) { Loading(0), Main(0), Picker(1), ThemeEditor(1), Detail(2) }
+
+private val TABS = listOf(
+    TabItem("Расписание", Icons.Filled.DateRange),
+    TabItem("Предметы", Icons.Filled.Edit),
+    TabItem("Настройки", Icons.Filled.Settings),
+)
 
 @Composable
 fun AppRoot(state: UiState, vm: MainViewModel) {
@@ -112,8 +121,8 @@ fun AppRoot(state: UiState, vm: MainViewModel) {
         state.starting -> Screen.Loading
         state.picker != null || settings == null -> Screen.Picker
         state.detail != null -> Screen.Detail
-        state.showSettings -> Screen.Settings
-        else -> Screen.Schedule
+        state.showThemeEditor -> Screen.ThemeEditor
+        else -> Screen.Main
     }
     // последняя открытая пара — чтобы экран не пропал посреди анимации закрытия
     val lastDetail = remember { arrayOfNulls<LessonDetail>(1) }
@@ -145,17 +154,43 @@ fun AppRoot(state: UiState, vm: MainViewModel) {
                 }
                 Screen.Detail -> lastDetail[0]?.let { d ->
                     BackHandler { vm.closeLesson() }
-                    LessonScreen(d, state.prefs) { vm.closeLesson() }
+                    LessonScreen(d, state, vm) { vm.closeLesson() }
                 }
-                Screen.Settings -> {
-                    BackHandler { vm.closeSettings() }
-                    SettingsScreen(state, vm)
+                Screen.ThemeEditor -> {
+                    BackHandler { vm.closeThemeEditor() }
+                    ThemeEditorScreen(state, vm)
                 }
-                Screen.Schedule -> ScheduleScreen(state, vm)
+                Screen.Main -> MainTabs(state, vm)
             }
         }
     }
     state.captcha?.let { CaptchaDialog(it, vm) }
+    state.hwDraft?.let { HomeworkEditorDialog(it, vm) }
+}
+
+/** Три вкладки с нижней панелью; содержимое меняется с лёгким сдвигом. */
+@Composable
+private fun MainTabs(state: UiState, vm: MainViewModel) {
+    BackHandler(enabled = state.tab != 0) { vm.selectTab(0) }
+    Column(Modifier.fillMaxSize()) {
+        AnimatedContent(
+            targetState = state.tab,
+            transitionSpec = {
+                val dir = if (targetState > initialState) 1 else -1
+                (slideInHorizontally(tween(300)) { dir * it / 5 } + fadeIn(tween(300))) togetherWith
+                    (slideOutHorizontally(tween(300)) { -dir * it / 5 } + fadeOut(tween(150)))
+            },
+            modifier = Modifier.weight(1f),
+            label = "tab",
+        ) { t ->
+            when (t) {
+                1 -> SubjectsScreen(state, vm)
+                2 -> SettingsScreen(state, vm)
+                else -> ScheduleScreen(state, vm)
+            }
+        }
+        StyledTabBar(TABS, state.tab) { vm.selectTab(it) }
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -205,14 +240,12 @@ fun ScheduleScreen(state: UiState, vm: MainViewModel) {
                 Text(sub, style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
             }
             GlassIconButton(Icons.Filled.Refresh, "Обновить", iconRotation = spin) { vm.refresh() }
-            Spacer(Modifier.width(10.dp))
-            GlassIconButton(Icons.Filled.Settings, "Настройки") { vm.openSettings() }
         }
 
         // ---------------- неделя и дни
         GlassCard(
             Modifier.padding(horizontal = 14.dp).fillMaxWidth(),
-            shape = RoundedCornerShape(30.dp),
+            shape = skinShape(30),
             strong = true,
         ) {
             Column(Modifier.padding(horizontal = 6.dp, vertical = 6.dp)) {
@@ -254,11 +287,13 @@ fun ScheduleScreen(state: UiState, vm: MainViewModel) {
         }
 
         // ---------------- пары
+        Spacer(Modifier.height(8.dp))
+        // верх списка плавно растворяется, а не обрезается под карточкой с днями
         HorizontalPager(
             state = pagerState,
-            modifier = Modifier.weight(1f).fillMaxWidth(),
+            modifier = Modifier.weight(1f).fillMaxWidth().fadeTopEdge(),
         ) { page ->
-            DayPage(days[page], today, state.week, state.refreshing, state.prefs) { d, l -> vm.openLesson(d, l) }
+            DayPage(days[page], today, state.week, state.refreshing, state.prefs, state.homework) { d, l -> vm.openLesson(d, l) }
         }
 
         val fetched = state.week?.fetchedAt
@@ -269,7 +304,7 @@ fun ScheduleScreen(state: UiState, vm: MainViewModel) {
             style = MaterialTheme.typography.labelSmall,
             color = cs.onSurfaceVariant,
             textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(vertical = 6.dp),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         )
     }
 }
@@ -337,7 +372,7 @@ private fun DayStrip(
                 .width(cell)
                 .height(66.dp)
                 .padding(horizontal = 3.dp)
-                .clip(RoundedCornerShape(22.dp))
+                .clip(skinShape(22))
                 .background(Brush.verticalGradient(listOf(cs.primary, cs.primary.copy(alpha = 0.78f)))),
         )
         Row(Modifier.fillMaxWidth()) {
@@ -357,7 +392,7 @@ private fun DayStrip(
                     Modifier
                         .width(cell)
                         .height(66.dp)
-                        .clip(RoundedCornerShape(22.dp))
+                        .clip(skinShape(22))
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
@@ -389,7 +424,7 @@ private fun DayStrip(
 private fun Banner(title: String, lines: List<String>, tint: Color, onClose: () -> Unit) {
     GlassCard(
         Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 10.dp),
-        shape = RoundedCornerShape(22.dp),
+        shape = skinShape(22),
         tint = tint,
     ) {
         Column(Modifier.padding(start = 16.dp, end = 6.dp, top = 6.dp, bottom = 12.dp)) {
@@ -417,6 +452,7 @@ private fun DayPage(
     week: WeekSchedule?,
     refreshing: Boolean,
     prefs: Prefs,
+    homework: List<Homework>,
     onOpen: (LocalDate, Lesson) -> Unit,
 ) {
     val title = DAY_FULL[date.dayOfWeek.value - 1] + ", " + date.format(DM) +
@@ -473,7 +509,9 @@ private fun DayPage(
             val isNow = date == today && !l.cancelled && !l.moved && !other && nowMin in s until e
             val progress = if (isNow && e > s) (nowMin - s).toFloat() / (e - s) else 0f
             val nextIn = if (l == nextStart) formatIn(s - nowMin) else null
+            val hw = homework.filter { !it.done && it.subject == l.subject && it.due == date }
             LessonCard(
+                homework = hw,
                 l = l,
                 isNow = isNow,
                 progress = progress,
@@ -507,7 +545,7 @@ private fun EmptyState(emoji: String, title: String, text: String) {
         infiniteRepeatable(tween(3600, easing = LinearEasing), RepeatMode.Restart), label = "t",
     )
     Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-        GlassCard(Modifier.fillMaxWidth(), shape = RoundedCornerShape(32.dp)) {
+        GlassCard(Modifier.fillMaxWidth(), shape = skinShape(32)) {
             Column(
                 Modifier.fillMaxWidth().padding(vertical = 36.dp, horizontal = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -542,6 +580,7 @@ private fun kindColor(kind: String?): Color {
 
 @Composable
 private fun LessonCard(
+    homework: List<Homework>,
     l: Lesson,
     isNow: Boolean,
     progress: Float,
@@ -556,7 +595,7 @@ private fun LessonCard(
     val inactive = l.cancelled || l.moved
     val alpha = if (inactive || otherSubgroup) 0.5f else 1f
     val stripe = kindColor(l.kind)
-    val shape = RoundedCornerShape(26.dp)
+    val shape = skinShape(26)
     val glow = if (isNow) {
         val inf = rememberInfiniteTransition(label = "glow")
         inf.animateFloat(
@@ -670,6 +709,21 @@ private fun LessonCard(
                     }
                     if (l.changed && !shown && otherLines.isEmpty()) {
                         Text("Есть изменения — нажмите, чтобы посмотреть", style = MaterialTheme.typography.labelMedium, color = red)
+                    }
+                    if (homework.isNotEmpty()) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "📝 ДЗ: " + homework.joinToString(" · ") { it.text },
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            color = cs.onTertiaryContainer,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .clip(skinShape(12))
+                                .background(cs.tertiaryContainer.copy(alpha = 0.85f))
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                        )
                     }
                     if (isNow) {
                         Spacer(Modifier.height(10.dp))
