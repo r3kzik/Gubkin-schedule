@@ -38,6 +38,43 @@ class Storage(private val dir: File) {
         writeAtomic(settingsFile, o.toString())
     }
 
+    private val prefsFile get() = File(dir, "prefs.json")
+    private val rawFile get() = File(dir, "last_raw.json")
+
+    fun loadPrefs(): Prefs = try {
+        val o = Json.parseToJsonElement(prefsFile.readText()).obj()
+        val d = Prefs()
+        if (o == null) d else Prefs(
+            subgroup = o["subgroup"].int() ?: d.subgroup,
+            hideOtherSubgroup = o["hideOther"]?.let { it.truthy() } ?: d.hideOtherSubgroup,
+            remindEnabled = o["remind"]?.let { it.truthy() } ?: d.remindEnabled,
+            remindMinutes = o["remindMinutes"].int() ?: d.remindMinutes,
+            changeNotify = o["changeNotify"]?.let { it.truthy() } ?: d.changeNotify,
+            theme = o["theme"].str() ?: d.theme,
+            dynamicColor = o["dynamic"]?.let { it.truthy() } ?: d.dynamicColor,
+        )
+    } catch (e: Exception) {
+        Prefs()
+    }
+
+    fun savePrefs(p: Prefs) {
+        val o = buildJsonObject {
+            put("subgroup", p.subgroup)
+            put("hideOther", p.hideOtherSubgroup)
+            put("remind", p.remindEnabled)
+            put("remindMinutes", p.remindMinutes)
+            put("changeNotify", p.changeNotify)
+            put("theme", p.theme)
+            put("dynamic", p.dynamicColor)
+        }
+        writeAtomic(prefsFile, o.toString())
+    }
+
+    /** Последний «сырой» ответ сайта — для диагностики (например, если подгруппы не распознаются). */
+    fun saveRaw(text: String) = runCatching { writeAtomic(rawFile, text) }
+
+    fun rawFile(): File? = rawFile.takeIf { it.exists() }
+
     private fun weekFile(groupId: String, monday: LocalDate) =
         File(dir, "week_${groupId}_$monday.json")
 
@@ -99,6 +136,7 @@ class Storage(private val dir: File) {
                         put("cancelled", l.cancelled)
                         put("moved", l.moved)
                         put("changed", l.changed)
+                        l.subgroup?.let { put("sub", it) }
                     })
                 }
             })
@@ -127,6 +165,7 @@ class Storage(private val dir: File) {
                         cancelled = x["cancelled"].truthy(),
                         moved = x["moved"].truthy(),
                         changed = x["changed"].truthy(),
+                        subgroup = x["sub"].int(),
                     )
                 },
                 fetchedAt = o["fetchedAt"].str()?.toLongOrNull() ?: 0L,

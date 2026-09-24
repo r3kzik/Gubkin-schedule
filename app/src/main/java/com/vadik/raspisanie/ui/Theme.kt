@@ -23,12 +23,20 @@ private val Dark = darkColorScheme(
     tertiary = Color(0xFFF2B8B5),
 )
 
+/** true, если должна быть тёмная тема с учётом выбора в настройках. */
 @Composable
-fun AppTheme(content: @Composable () -> Unit) {
-    val dark = isSystemInDarkTheme()
+fun isDark(mode: String): Boolean = when (mode) {
+    "light" -> false
+    "dark" -> true
+    else -> isSystemInDarkTheme()
+}
+
+@Composable
+fun AppTheme(mode: String = "system", dynamicColor: Boolean = true, content: @Composable () -> Unit) {
+    val dark = isDark(mode)
     val ctx = LocalContext.current
     val scheme = when {
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
             if (dark) dynamicDarkColorScheme(ctx) else dynamicLightColorScheme(ctx)
         dark -> Dark
         else -> Light

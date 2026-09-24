@@ -57,7 +57,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.activity.compose.BackHandler
 import com.vadik.raspisanie.data.Lesson
+import com.vadik.raspisanie.data.Prefs
 import com.vadik.raspisanie.data.WeekSchedule
 import com.vadik.raspisanie.data.timeKey
 import java.time.Instant
@@ -80,8 +82,15 @@ fun AppRoot(state: UiState, vm: MainViewModel) {
             contentAlignment = Alignment.Center,
         ) { CircularProgressIndicator() }
 
-        state.picker != null || settings == null ->
+        state.picker != null || settings == null -> {
+            BackHandler(enabled = settings != null) { vm.closePicker() }
             PickerScreen(state.picker ?: PickerState(), canClose = settings != null, vm = vm)
+        }
+
+        state.showSettings -> {
+            BackHandler { vm.closeSettings() }
+            SettingsScreen(state, vm)
+        }
 
         else -> ScheduleScreen(state, vm)
     }
@@ -113,7 +122,11 @@ fun ScheduleScreen(state: UiState, vm: MainViewModel) {
             TopAppBar(
                 title = {
                     Column {
-                        Text(settings.groupName, maxLines = 1)
+                        Text(
+                            settings.groupName +
+                                if (state.prefs.subgroup != 0) " · ${state.prefs.subgroup} подгр." else "",
+                            maxLines = 1,
+                        )
                         val sub = state.week?.weekTypeLabel ?: "Расписание занятий"
                         Text(
                             sub.replaceFirstChar { it.uppercase() },
@@ -138,6 +151,10 @@ fun ScheduleScreen(state: UiState, vm: MainViewModel) {
                         }
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                             DropdownMenuItem(
+                                text = { Text("Настройки") },
+                                onClick = { menuOpen = false; vm.openSettings() },
+                            )
+                            DropdownMenuItem(
                                 text = { Text("Сменить группу") },
                                 onClick = { menuOpen = false; vm.openPicker() },
                             )
@@ -159,7 +176,7 @@ fun ScheduleScreen(state: UiState, vm: MainViewModel) {
                 onNext = { vm.shiftWeek(1) },
                 onToday = { vm.goToday() },
             )
-            DayStrip(days, state.selectedDate, today, state.week) { vm.selectDate(it) }
+            DayStrip(days, state.selectedDate, today, state.week, state.prefs) { vm.selectDate(it) }
 
             state.error?.let { msg ->
                 Banner(
@@ -184,7 +201,7 @@ fun ScheduleScreen(state: UiState, vm: MainViewModel) {
                 state = pagerState,
                 modifier = Modifier.weight(1f).fillMaxWidth(),
             ) { page ->
-                DayPage(days[page], today, state.week, state.refreshing)
+                DayPage(days[page], today, state.week, state.refreshing, state.prefs)
             }
 
             val fetched = state.week?.fetchedAt
@@ -237,6 +254,7 @@ private fun DayStrip(
     selected: LocalDate,
     today: LocalDate,
     week: WeekSchedule?,
+    prefs: Prefs,
     onClick: (LocalDate) -> Unit,
 ) {
     Row(
@@ -245,7 +263,7 @@ private fun DayStrip(
     ) {
         days.forEachIndexed { i, d ->
             val isSel = d == selected
-            val hasLessons = week?.lessonsOn(d)?.any { !it.cancelled } == true
+            val hasLessons = week?.lessonsOn(d)?.any { !it.cancelled && prefs.concernsMe(it) } == true
             val bg = if (isSel) MaterialTheme.colorScheme.primary else Color.Transparent
             val fg = when {
                 isSel -> MaterialTheme.colorScheme.onPrimary
@@ -313,7 +331,7 @@ private fun Banner(
 }
 
 @Composable
-private fun DayPage(date: LocalDate, today: LocalDate, week: WeekSchedule?, refreshing: Boolean) {
+private fun DayPage(date: LocalDate, today: LocalDate, week: WeekSchedule?, refreshing: Boolean, prefs: Prefs) {
     val title = DAY_FULL[date.dayOfWeek.value - 1] + ", " + date.format(DM) +
         if (date == today) " · сегодня" else if (date == today.plusDays(1)) " · завтра" else ""
     if (week == null) {
@@ -324,7 +342,7 @@ private fun DayPage(date: LocalDate, today: LocalDate, week: WeekSchedule?, refr
         )
         return
     }
-    val lessons = week.lessonsOn(date)
+    val lessons = week.lessonsOn(date).filter { prefs.shows(it) }
     if (lessons.isEmpty()) {
         CenterMessage(title, "Пар нет 🎉", showProgress = false)
         return
@@ -343,9 +361,10 @@ private fun DayPage(date: LocalDate, today: LocalDate, week: WeekSchedule?, refr
             )
         }
         items(lessons) { l ->
-            val isNow = date == today && !l.cancelled &&
+            val other = prefs.isOtherSubgroup(l)
+            val isNow = date == today && !l.cancelled && !other &&
                 nowMinutes >= timeKey(l.start) && nowMinutes < timeKey(l.end.ifBlank { l.start })
-            LessonCard(l, isNow)
+            LessonCard(l, isNow, other)
         }
     }
 }
@@ -373,8 +392,9 @@ private fun CenterMessage(title: String, text: String, showProgress: Boolean) {
 }
 
 @Composable
-private fun LessonCard(l: Lesson, isNow: Boolean) {
+private fun LessonCard(l: Lesson, isNow: Boolean, otherSubgroup: Boolean) {
     val inactive = l.cancelled || l.moved
+    val faded = inactive || otherSubgroup
     val colors = when {
         isNow -> CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -385,7 +405,7 @@ private fun LessonCard(l: Lesson, isNow: Boolean) {
             contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
-    val alpha = if (inactive) 0.55f else 1f
+    val alpha = if (faded) 0.5f else 1f
     Card(Modifier.fillMaxWidth(), colors = colors) {
         Row(Modifier.padding(14.dp)) {
             Column(Modifier.width(58.dp)) {
@@ -416,8 +436,15 @@ private fun LessonCard(l: Lesson, isNow: Boolean) {
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
                 )
-                l.kind?.let {
-                    Text(it, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary.copy(alpha = alpha))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    l.kind?.let {
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = alpha),
+                        )
+                    }
+                    l.subgroup?.let { SubgroupBadge(it, otherSubgroup) }
                 }
                 Spacer(Modifier.height(6.dp))
                 l.room?.let { InfoRow(Icons.Filled.Place, "ауд. $it", alpha) }
@@ -439,6 +466,23 @@ private fun LessonCard(l: Lesson, isNow: Boolean) {
             }
         }
     }
+}
+
+/** Метка «1 подгр.»: своя подгруппа — цветная, чужая — серая. */
+@Composable
+private fun SubgroupBadge(n: Int, other: Boolean) {
+    val bg = if (other) MaterialTheme.colorScheme.outlineVariant else MaterialTheme.colorScheme.secondaryContainer
+    val fg = if (other) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSecondaryContainer
+    Text(
+        "$n подгр.",
+        style = MaterialTheme.typography.labelMedium,
+        color = fg,
+        modifier = Modifier
+            .padding(start = 8.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(bg)
+            .padding(horizontal = 6.dp, vertical = 1.dp),
+    )
 }
 
 @Composable

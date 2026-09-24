@@ -17,6 +17,8 @@ import com.vadik.raspisanie.ui.MainActivity
 object Notifier {
     private const val CHANNEL_CHANGES = "changes"
     private const val CHANNEL_SERVICE = "service"
+    private const val CHANNEL_REMINDERS = "reminders"
+    private const val ID_REMINDER = 3
     private const val ID_CHANGES = 1
     private const val ID_CAPTCHA = 2
 
@@ -27,6 +29,11 @@ object Notifier {
             NotificationChannel(
                 CHANNEL_CHANGES, "Изменения в расписании", NotificationManager.IMPORTANCE_HIGH
             ).apply { description = "Отмены, переносы, смена аудитории или преподавателя" }
+        )
+        nm.createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_REMINDERS, "Начало пары", NotificationManager.IMPORTANCE_HIGH
+            ).apply { description = "Напоминание за несколько минут до начала пары" }
         )
         nm.createNotificationChannel(
             NotificationChannel(
@@ -64,6 +71,25 @@ object Notifier {
             NotificationManagerCompat.from(ctx).notify(ID_CHANGES, n)
         } catch (e: SecurityException) {
             // разрешение отозвали — просто молчим
+        }
+    }
+
+    fun lessonReminder(ctx: Context, title: String, text: String) {
+        if (!canNotify(ctx)) return
+        val n = NotificationCompat.Builder(ctx, CHANNEL_REMINDERS)
+            .setSmallIcon(R.drawable.ic_stat_schedule)
+            .setContentTitle(title)
+            .setContentText(text.lineSequence().firstOrNull().orEmpty())
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setContentIntent(openAppIntent(ctx))
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setTimeoutAfter(2 * 60 * 60 * 1000L)
+            .build()
+        try {
+            NotificationManagerCompat.from(ctx).notify(ID_REMINDER, n)
+        } catch (e: SecurityException) {
         }
     }
 

@@ -21,18 +21,24 @@ class Repository(
     fun cachedWeek(groupId: String, date: LocalDate): WeekSchedule? =
         storage.loadWeek(groupId, mondayOf(date))
 
+    fun prefs(): Prefs = storage.loadPrefs()
+    fun savePrefs(p: Prefs) = storage.savePrefs(p)
+    fun rawFile() = storage.rawFile()
+
     @Synchronized
-    fun refreshWeek(groupId: String, date: LocalDate, today: LocalDate = LocalDate.now()): RefreshResult {
+    fun refreshWeek(settings: Settings, date: LocalDate, today: LocalDate = LocalDate.now()): RefreshResult {
         val monday = mondayOf(date)
-        val text = source.weekJson(monday, groupId)
-        val fresh = ScheduleParser.parseWeek(text, groupId, monday, clock())
-        val old = storage.loadWeek(groupId, monday)
+        val text = source.weekJson(monday, settings.groupId)
+        val fresh = ScheduleParser.parseWeek(text, settings.groupId, monday, clock(), settings.groupName)
+        storage.saveRaw(text)
+        val old = storage.loadWeek(settings.groupId, monday)
         // Защита: если сайт вдруг отдал пустую неделю при непустой сохранённой,
         // не затираем её молча (это чаще сбой сайта, чем реальная отмена всех пар).
         if (fresh.lessons.isEmpty() && old != null && old.lessons.isNotEmpty() && fresh.days.isEmpty()) {
             throw SiteException("Сайт вернул пустое расписание — показано сохранённое")
         }
-        val changes = ScheduleDiff.describe(old, fresh, today)
+        val prefs = storage.loadPrefs()
+        val changes = ScheduleDiff.describe(old, fresh, today) { prefs.concernsMe(it) }
         storage.saveWeek(fresh)
         return RefreshResult(fresh, changes)
     }

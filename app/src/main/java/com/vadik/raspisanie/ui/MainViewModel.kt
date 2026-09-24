@@ -7,10 +7,12 @@ import com.vadik.raspisanie.App
 import com.vadik.raspisanie.data.CaptchaRequiredException
 import com.vadik.raspisanie.data.Faculty
 import com.vadik.raspisanie.data.Group
+import com.vadik.raspisanie.data.Prefs
 import com.vadik.raspisanie.data.Repository
 import com.vadik.raspisanie.data.Settings
 import com.vadik.raspisanie.data.SiteException
 import com.vadik.raspisanie.data.WeekSchedule
+import com.vadik.raspisanie.work.AppSync
 import com.vadik.raspisanie.work.Notifier
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -48,6 +50,8 @@ data class UiState(
     val changes: List<String> = emptyList(),
     val picker: PickerState? = null,
     val captcha: CaptchaState? = null,
+    val prefs: Prefs = Prefs(),
+    val showSettings: Boolean = false,
 ) {
     val monday: LocalDate get() = Repository.mondayOf(selectedDate)
 }
@@ -68,7 +72,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         viewModelScope.launch {
-            val s = withContext(Dispatchers.IO) { repo.settings() }
+            val (s, prefs) = withContext(Dispatchers.IO) { repo.settings() to repo.prefs() }
+            _state.update { it.copy(prefs = prefs) }
             if (s == null) {
                 _state.update { it.copy(starting = false) }
                 autoSetup()
@@ -137,7 +142,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         refreshJob = viewModelScope.launch {
             _state.update { it.copy(refreshing = true, error = null) }
             try {
-                val r = withContext(Dispatchers.IO) { repo.refreshWeek(s.groupId, date) }
+                val r = withContext(Dispatchers.IO) {
+                    repo.refreshWeek(s, date).also { AppSync.afterDataChange(app) }
+                }
                 _state.update { st ->
                     if (st.monday != r.week.monday) st.copy(refreshing = false)
                     else st.copy(
@@ -241,13 +248,32 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun applyGroup(s: Settings) {
         viewModelScope.launch {
-            withContext(Dispatchers.IO) { repo.saveSettings(s) }
+            withContext(Dispatchers.IO) {
+                repo.saveSettings(s)
+                AppSync.afterDataChange(app)
+            }
             _state.update {
                 it.copy(settings = s, picker = null, week = null, changes = emptyList(), error = null)
             }
             showWeek(_state.value.selectedDate)
         }
     }
+
+    // ------------------------------------------------------------ настройки
+
+    fun openSettings() = _state.update { it.copy(showSettings = true) }
+    fun closeSettings() = _state.update { it.copy(showSettings = false) }
+
+    fun updatePrefs(change: (Prefs) -> Prefs) {
+        val p = change(_state.value.prefs)
+        _state.update { it.copy(prefs = p) }
+        viewModelScope.launch(Dispatchers.IO) {
+            repo.savePrefs(p)
+            AppSync.afterDataChange(app)
+        }
+    }
+
+    fun rawFile() = repo.rawFile()
 
     // ------------------------------------------------------------ капча
 

@@ -31,7 +31,7 @@ class RefreshWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ct
         try {
             for ((i, day) in listOf(today, today.plusWeeks(1)).withIndex()) {
                 if (i > 0) delay(2_000) // не частим запросами к сайту
-                changes += repo.refreshWeek(settings.groupId, day, today).changes
+                changes += repo.refreshWeek(settings, day, today).changes
             }
             Notifier.clearCaptcha(applicationContext)
         } catch (e: CaptchaRequiredException) {
@@ -39,7 +39,8 @@ class RefreshWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ct
         } catch (e: Exception) {
             // нет сети / сайт лежит — попробуем в следующий раз
         }
-        Notifier.scheduleChanged(applicationContext, changes)
+        if (repo.prefs().changeNotify) Notifier.scheduleChanged(applicationContext, changes)
+        AppSync.afterDataChange(applicationContext)
         Result.success()
     }
 

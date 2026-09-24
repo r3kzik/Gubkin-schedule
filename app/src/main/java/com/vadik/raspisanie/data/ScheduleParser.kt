@@ -48,7 +48,14 @@ object ScheduleParser {
         return root
     }
 
-    fun parseWeek(text: String, groupId: String, monday: LocalDate, now: Long): WeekSchedule {
+    fun parseWeek(
+        text: String,
+        groupId: String,
+        monday: LocalDate,
+        now: Long,
+        groupCode: String = "",
+    ): WeekSchedule {
+        val myCode = Repository.normalizeCode(groupCode)
         val root = parseRoot(text)
         val rows = root["rows"].obj() ?: JsonObject(emptyMap())
         val weekRussia = rows["week"].obj()?.get("weekRussia").obj()
@@ -64,8 +71,14 @@ object ScheduleParser {
             val chunks = o["lessonsTimeChunks"].arr().orEmpty().map { it.str().orEmpty() }
             for (l in o["lessons"].arr().orEmpty()) {
                 val lo = l.obj() ?: continue
-                val groupIds = lo["groups"].arr().orEmpty().mapNotNull { it.obj()?.get("id").str() }
-                if (groupIds.isNotEmpty() && groupId !in groupIds) continue
+                val groups = lo["groups"].arr().orEmpty().mapNotNull { it.obj() }
+                // своя группа: по id или по коду (подгруппы на сайте могут быть отдельными «группами»
+                // вида «КВ-26-02/1»)
+                val mine = groups.firstOrNull { it["id"].str() == groupId }
+                    ?: groups.firstOrNull { g ->
+                        myCode.isNotEmpty() && groupCodeOf(g)?.let { Repository.normalizeCode(it).startsWith(myCode) } == true
+                    }
+                if (groups.isNotEmpty() && mine == null) continue
                 val tc = lo["timeChunks"].arr().orEmpty().mapNotNull { it.int() }
                 val first = tc.firstOrNull()
                 val last = tc.lastOrNull()
@@ -93,6 +106,7 @@ object ScheduleParser {
                     cancelled = lo["isCanceled"].truthy() || lo["isCancelled"].truthy(),
                     moved = lo["isMoved"].truthy(),
                     changed = lo["changes"].truthy(),
+                    subgroup = detectSubgroup(lo, mine, myCode),
                 )
             }
         }
@@ -120,6 +134,67 @@ object ScheduleParser {
             val id = o["id"].str() ?: return@mapNotNull null
             Group(id, o["code"].str() ?: o["name"].str() ?: id)
         }.sortedBy { it.code }
+
+    // ---- подгруппы
+    //
+    // Точный формат подгрупп в API неизвестен, поэтому ищем в нескольких местах:
+    // 1) числовое поле пары вроде subgroup / subGroupNumber / subgroups;
+    // 2) то же поле у записи своей группы в groups[] или код группы вида «КВ-26-02/1»;
+    // 3) текст где угодно в паре: «1 п/г», «подгруппа 2», «2-я подгр.».
+
+    private val SUB_KEY = Regex("(?i)^(sub_?groups?|podgr\\w*|sub_?group_?(number|num|no|index|nr))$")
+    private val TXT_BEFORE = Regex("(?iu)(?<![\\d/])([1-9])\\s*(?:-?\\s*(?:я|ая))?\\s*(?:п/г|пг(?![а-яё])|подгр|гр\\.|групп)")
+    private val TXT_AFTER = Regex("(?iu)(?:п/г|подгр[а-яё]*\\.?)\\s*№?\\s*([1-9])(?!\\d)")
+    private val CODE_SUFFIX = Regex("^[\\s/.()\\-]*([1-9])\\)?$")
+
+    fun textSubgroup(s: String): Int? =
+        (TXT_BEFORE.find(s) ?: TXT_AFTER.find(s))?.groupValues?.get(1)?.toIntOrNull()
+
+    private fun groupCodeOf(g: JsonObject): String? =
+        g["code"].str() ?: g["name"].str() ?: g["title"].str()
+
+    private fun numFrom(el: JsonElement?): Int? = when (el) {
+        null, JsonNull -> null
+        is JsonPrimitive -> el.str()?.let { s ->
+            s.trim().toIntOrNull()?.takeIf { it in 1..9 } ?: textSubgroup(s)
+        }
+        is JsonArray -> el.mapNotNull { numFrom(it) }.distinct().singleOrNull()
+        is JsonObject -> numFrom(el["number"] ?: el["num"] ?: el["name"] ?: el["title"])
+    }
+
+    private fun keySubgroup(o: JsonObject): Int? {
+        for ((k, v) in o) {
+            if (SUB_KEY.matches(k)) numFrom(v)?.let { return it }
+        }
+        return null
+    }
+
+    private fun scanText(el: JsonElement?, depth: Int = 0): Int? {
+        if (depth > 4) return null
+        return when (el) {
+            null, JsonNull -> null
+            is JsonPrimitive -> if (el.isString) textSubgroup(el.content) else null
+            is JsonArray -> el.firstNotNullOfOrNull { scanText(it, depth + 1) }
+            // преподавателей не просматриваем: в ФИО подгрупп нет, а ложные совпадения возможны
+            is JsonObject -> el.entries.filter { it.key != "teachers" }
+                .firstNotNullOfOrNull { scanText(it.value, depth + 1) }
+        }
+    }
+
+    private fun detectSubgroup(lesson: JsonObject, mine: JsonObject?, myCode: String): Int? {
+        keySubgroup(lesson)?.let { return it }
+        if (mine != null) {
+            keySubgroup(mine)?.let { return it }
+            val code = groupCodeOf(mine)?.let { Repository.normalizeCode(it) }
+            if (code != null && myCode.isNotEmpty() && code.startsWith(myCode) && code != myCode) {
+                val rest = code.removePrefix(myCode)
+                CODE_SUFFIX.matchEntire(rest)?.let { return it.groupValues[1].toInt() }
+                textSubgroup(rest)?.let { return it }
+            }
+        }
+        val withoutGroups = JsonObject(lesson.filterKeys { it != "groups" })
+        return scanText(withoutGroups)
+    }
 
     /** "Иванов Иван Петрович" -> "Иванов И. П." */
     private fun teacherName(el: JsonElement): String? {

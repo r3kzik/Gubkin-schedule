@@ -9,14 +9,19 @@ object ScheduleDiff {
 
     private val dayFmt = DateTimeFormatter.ofPattern("EE dd.MM", Locale.forLanguageTag("ru"))
 
-    fun describe(old: WeekSchedule?, new: WeekSchedule, today: LocalDate): List<String> {
+    fun describe(
+        old: WeekSchedule?,
+        new: WeekSchedule,
+        today: LocalDate,
+        relevant: (Lesson) -> Boolean = { true },
+    ): List<String> {
         if (old == null) return emptyList()
         val out = mutableListOf<String>()
         for (i in 0L until 7L) {
             val date = new.monday.plusDays(i)
             if (date.isBefore(today)) continue // прошедшие дни не интересны
-            val before = old.lessonsOn(date)
-            val after = new.lessonsOn(date)
+            val before = old.lessonsOn(date).filter(relevant)
+            val after = new.lessonsOn(date).filter(relevant)
             if (before == after) continue
             val dayLabel = date.format(dayFmt).replaceFirstChar { it.uppercase() }
             out += describeDay(dayLabel, before, after)
@@ -50,6 +55,7 @@ object ScheduleDiff {
             if (!o.moved && n.moved) parts += "перенесена"
             if (o.start != n.start || o.end != n.end) parts += "время ${o.start} → ${n.start}"
             if (o.room != n.room) parts += "ауд. ${o.room ?: "—"} → ${n.room ?: "—"}"
+            if (o.subgroup != n.subgroup) parts += "подгруппа ${o.subgroup ?: "вся группа"} → ${n.subgroup ?: "вся группа"}"
             if (o.teacher != n.teacher) parts += "преп. ${o.teacher ?: "—"} → ${n.teacher ?: "—"}"
             if (parts.isNotEmpty()) out += "$day, ${n.start} ${n.subject}: ${parts.joinToString(", ")}"
         }

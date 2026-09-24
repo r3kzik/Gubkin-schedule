@@ -4,6 +4,7 @@ import android.app.Application
 import com.vadik.raspisanie.data.GubkinApi
 import com.vadik.raspisanie.data.Repository
 import com.vadik.raspisanie.data.Storage
+import com.vadik.raspisanie.work.AppSync
 import com.vadik.raspisanie.work.Notifier
 import com.vadik.raspisanie.work.RefreshWorker
 import java.io.File
@@ -21,6 +22,7 @@ class App : Application() {
         repo = Repository(api, Storage(File(filesDir, "schedule")))
         Notifier.createChannels(this)
         RefreshWorker.schedule(this)
+        Thread { AppSync.afterDataChange(this) }.start()
     }
 
     companion object {

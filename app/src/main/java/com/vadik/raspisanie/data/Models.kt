@@ -15,6 +15,8 @@ data class Lesson(
     val cancelled: Boolean,
     val moved: Boolean,
     val changed: Boolean,
+    /** Номер подгруппы (1, 2…), если пара только для части группы; null — для всей группы. */
+    val subgroup: Int? = null,
 )
 
 /** День недели из ответа сайта: дата в формате dd-MM-yyyy и номер дня. */
@@ -47,6 +49,30 @@ data class WeekSchedule(
     companion object {
         val SITE_DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("dd-MM-yyyy")
     }
+}
+
+/** Настройки приложения. */
+data class Prefs(
+    /** 0 — все подгруппы, 1 или 2 — своя подгруппа. */
+    val subgroup: Int = 0,
+    /** true — пары другой подгруппы скрыты, false — показаны бледными. */
+    val hideOtherSubgroup: Boolean = true,
+    val remindEnabled: Boolean = true,
+    val remindMinutes: Int = 10,
+    val changeNotify: Boolean = true,
+    /** system | light | dark */
+    val theme: String = "system",
+    val dynamicColor: Boolean = true,
+) {
+    /** Пара другой подгруппы (не моей). */
+    fun isOtherSubgroup(l: Lesson): Boolean =
+        subgroup != 0 && l.subgroup != null && l.subgroup != subgroup
+
+    /** Показывать ли пару с учётом выбранной подгруппы. */
+    fun shows(l: Lesson): Boolean = !(hideOtherSubgroup && isOtherSubgroup(l))
+
+    /** Касается ли пара меня (для уведомлений и виджета). */
+    fun concernsMe(l: Lesson): Boolean = !isOtherSubgroup(l)
 }
 
 data class Faculty(val id: String, val name: String)
