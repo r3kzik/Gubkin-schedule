@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.vadik.raspisanie.data.Campus
 import com.vadik.raspisanie.data.Prefs
 import java.time.Instant
 import java.time.ZoneId
@@ -117,6 +118,16 @@ fun LessonScreen(detail: LessonDetail, state: UiState, vm: MainViewModel, onBack
                     highlight = if (l.roomChanged) red else null,
                     was = l.oldRoom,
                 )
+                Campus.locate(l.room)?.let { loc ->
+                    Text(
+                        "📍 ${loc.summary}" + (loc.note?.let { "\n$it" } ?: ""),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = cs.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    GlassPill("Показать на карте", selected = true) { vm.showOnMap(l.room) }
+                    Spacer(Modifier.height(4.dp))
+                }
                 InfoLine(
                     if (l.teacherChanged) "Преподаватель · замена" else "Преподаватель",
                     l.teacherFull ?: l.teacher ?: "не указан",

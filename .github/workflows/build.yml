@@ -1,8 +1,8 @@
-name: Сборка MyGub
+name: Сборка MyGub Beta
 
 on:
   push:
-    branches: [main]
+    branches: [beta]
   workflow_dispatch:
 
 permissions:
@@ -34,19 +34,20 @@ jobs:
           done
 
       - name: Переименовать APK
-        run: cp app/build/outputs/apk/release/app-release.apk mygub.apk
+        run: cp app/build/outputs/apk/release/app-release.apk mygub-beta.apk
 
       - name: Сохранить APK в сборке
         uses: actions/upload-artifact@v4
         with:
-          name: mygub-apk
-          path: mygub.apk
+          name: mygub-beta-apk
+          path: mygub-beta.apk
 
       - name: Опубликовать релиз (удобно скачивать с телефона)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: build-${{ github.run_number }}
-          name: MyGub 2.0.${{ github.run_number }}
-          body: "Скачайте **mygub.apk** ниже (удобнее прямо с телефона) и установите. Обновление ставится поверх предыдущей версии, настройки и ДЗ сохраняются."
-          files: mygub.apk
-          make_latest: true
+          tag_name: beta-${{ github.run_number }}
+          name: MyGub Beta 2.1.${{ github.run_number }}
+          body: "🧪 Тестовая версия MyGub с новыми функциями. Ставится РЯДОМ с основным приложением (отдельная иконка MyGub Beta). Может содержать ошибки. Скачайте **mygub-beta.apk** ниже."
+          files: mygub-beta.apk
+          prerelease: true
+          make_latest: false

@@ -9,12 +9,13 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.vadik.raspisanie"
+        // Beta — отдельное приложение для проверки новых функций, ставится рядом с MyGub
+        applicationId = "com.vadik.raspisanie.beta"
         minSdk = 26
         targetSdk = 34
         // номер сборки GitHub -> новая версия ставится поверх старой
         versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
-        versionName = "2.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
+        versionName = "2.1-beta." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
     }
 
     // Один постоянный ключ подписи: обновления устанавливаются поверх, настройки не теряются.

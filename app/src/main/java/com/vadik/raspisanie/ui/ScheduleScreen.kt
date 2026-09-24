@@ -86,6 +86,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.vadik.raspisanie.data.Campus
 import com.vadik.raspisanie.data.Homework
 import com.vadik.raspisanie.data.Lesson
 import androidx.compose.material.icons.filled.DateRange
@@ -111,6 +112,7 @@ private enum class Screen(val depth: Int) { Loading(0), Onboarding(0), Main(0), 
 private val TABS = listOf(
     TabItem("Расписание", Icons.Filled.DateRange),
     TabItem("Предметы", Icons.Filled.Edit),
+    TabItem("Карта", Icons.Filled.Place),
     TabItem("Настройки", Icons.Filled.Settings),
 )
 
@@ -187,7 +189,8 @@ private fun MainTabs(state: UiState, vm: MainViewModel) {
         ) { t ->
             when (t) {
                 1 -> SubjectsScreen(state, vm)
-                2 -> SettingsScreen(state, vm)
+                2 -> MapScreen(state, vm)
+                3 -> SettingsScreen(state, vm)
                 else -> ScheduleScreen(state, vm)
             }
         }
@@ -229,12 +232,28 @@ fun ScheduleScreen(state: UiState, vm: MainViewModel) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
-                Text(
-                    settings.groupName,
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        settings.groupName,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                    )
+                    // тестовая сборка помечена, чтобы не путать с основной
+                    if (androidx.compose.ui.platform.LocalContext.current.packageName.endsWith(".beta")) {
+                        Text(
+                            "BETA",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = cs.onTertiary,
+                            modifier = Modifier
+                                .padding(start = 8.dp)
+                                .clip(RoundedCornerShape(50))
+                                .background(cs.tertiary)
+                                .padding(horizontal = 8.dp, vertical = 2.dp),
+                        )
+                    }
+                }
                 val sub = listOfNotNull(
                     state.week?.weekTypeLabel?.replaceFirstChar { it.uppercase() } ?: "Расписание занятий",
                     if (state.prefs.subgroup != 0) "${state.prefs.subgroup} подгруппа" else null,
@@ -295,7 +314,7 @@ fun ScheduleScreen(state: UiState, vm: MainViewModel) {
             state = pagerState,
             modifier = Modifier.weight(1f).fillMaxWidth().fadeTopEdge(),
         ) { page ->
-            DayPage(days[page], today, state.week, state.refreshing, state.prefs, state.homework) { d, l -> vm.openLesson(d, l) }
+            DayPage(days[page], today, state.week, state.refreshing, state.prefs, state.homework, onWhere = { vm.showOnMap(it.room) }) { d, l -> vm.openLesson(d, l) }
         }
 
         val fetched = state.week?.fetchedAt
@@ -455,6 +474,7 @@ private fun DayPage(
     refreshing: Boolean,
     prefs: Prefs,
     homework: List<Homework>,
+    onWhere: (Lesson) -> Unit,
     onOpen: (LocalDate, Lesson) -> Unit,
 ) {
     val title = DAY_FULL[date.dayOfWeek.value - 1] + ", " + date.format(DM) +
@@ -520,6 +540,7 @@ private fun DayPage(
                 minutesLeft = e - nowMin,
                 nextIn = nextIn,
                 otherSubgroup = other,
+                onWhere = { onWhere(l) },
                 modifier = Modifier.graphicsLayer {
                     alpha = appear.value.coerceIn(0f, 1f)
                     translationY = (1f - appear.value) * 80f
@@ -590,6 +611,7 @@ private fun LessonCard(
     nextIn: String?,
     otherSubgroup: Boolean,
     modifier: Modifier = Modifier,
+    onWhere: () -> Unit = {},
     onClick: () -> Unit,
 ) {
     val cs = MaterialTheme.colorScheme
@@ -674,6 +696,20 @@ private fun LessonCard(
                             highlight = if (l.roomChanged) red else null,
                             note = l.oldRoom?.let { o -> "было ${o.substringBefore(" - ")}" },
                         )
+                        // где это: корпус и этаж по номеру аудитории → на карту
+                        Campus.locate(it)?.let { loc ->
+                            Text(
+                                "${loc.summary} · на карте ›",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = cs.primary.copy(alpha = alpha),
+                                modifier = Modifier
+                                    .padding(start = 18.dp, bottom = 2.dp)
+                                    .clip(RoundedCornerShape(50))
+                                    .clickable(onClick = onWhere)
+                                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                            )
+                        }
                     }
                     l.teacher?.let {
                         InfoRow(
