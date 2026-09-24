@@ -65,10 +65,12 @@ fun ThemeEditorScreen(state: UiState, vm: MainViewModel) {
         Column(
             Modifier
                 .fillMaxSize()
+                .fadeEdges(40f, 70f)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 14.dp)
+                .padding(top = 12.dp)
                 .navigationBarsPadding()
-                .padding(bottom = 24.dp),
+                .padding(bottom = 32.dp),
         ) {
             // ---------------- живой предпросмотр текущей темы
             SamplePreview(state.settings?.groupName ?: "КВ-26-02")

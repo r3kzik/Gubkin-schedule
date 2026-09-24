@@ -47,6 +47,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -315,7 +316,7 @@ fun ScheduleScreen(state: UiState, vm: MainViewModel) {
         // верх списка плавно растворяется, а не обрезается под карточкой с днями
         HorizontalPager(
             state = pagerState,
-            modifier = Modifier.weight(1f).fillMaxWidth().fadeEdges(),
+            modifier = Modifier.weight(1f).fillMaxWidth().fadeEdges(40f, 70f),
         ) { page ->
             DayPage(days[page], today, state.week, state.refreshing, state.prefs, state.homework, updatedText(state.week?.fetchedAt), onWhere = { vm.showOnMap(it.room) }) { d, l -> vm.openLesson(d, l) }
         }
@@ -500,9 +501,25 @@ private fun DayPage(
         .filter { !it.cancelled && !it.moved && !prefs.isOtherSubgroup(it) && timeKey(it.start) > nowMin }
         .minByOrNull { timeKey(it.start) } else null
 
+    // При открытии сегодняшнего дня сразу прокручиваем к паре, которая идёт сейчас
+    // (или к ближайшей следующей), чтобы не листать вручную.
+    val listState = rememberLazyListState()
+    LaunchedEffect(date, lessons.size) {
+        if (date != today) return@LaunchedEffect
+        val idx = lessons.indexOfFirst { l ->
+            val s = timeKey(l.start)
+            val e = timeKey(l.end.ifBlank { l.start })
+            !l.cancelled && !l.moved && !prefs.isOtherSubgroup(l) && nowMin < e && (nowMin >= s || l == nextStart)
+        }
+        if (idx > 0) {
+            delay(250) // даём карточкам начать появляться
+            listState.animateScrollToItem(idx + 1) // +1 — заголовок дня
+        }
+    }
     LazyColumn(
         Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 40.dp),
+        state = listState,
+        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 40.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {

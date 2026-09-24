@@ -73,9 +73,10 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
         Column(
             Modifier
                 .fillMaxSize()
+                .fadeEdges(40f, 70f)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 14.dp)
-                .padding(bottom = 16.dp),
+                .padding(bottom = 32.dp),
         ) {
             // ---------------- оформление
             SectionTitle("Оформление")

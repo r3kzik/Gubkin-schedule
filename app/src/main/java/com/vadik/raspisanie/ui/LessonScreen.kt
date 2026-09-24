@@ -63,10 +63,12 @@ fun LessonScreen(detail: LessonDetail, state: UiState, vm: MainViewModel, onBack
         Column(
             Modifier
                 .fillMaxSize()
+                .fadeEdges(40f, 70f)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 14.dp)
+                .padding(top = 14.dp)
                 .navigationBarsPadding()
-                .padding(bottom = 24.dp),
+                .padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             // ---------------- заголовок

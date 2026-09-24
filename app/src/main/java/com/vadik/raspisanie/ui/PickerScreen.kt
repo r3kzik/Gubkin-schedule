@@ -100,8 +100,8 @@ fun PickerScreen(p: PickerState, canClose: Boolean, vm: MainViewModel) {
                     )
                 }
                 LazyColumn(
-                    Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 24.dp),
+                    Modifier.fillMaxSize().fadeEdges(40f, 70f),
+                    contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 32.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     items(p.faculties, key = { it.id }) { f ->
@@ -136,8 +136,8 @@ fun PickerScreen(p: PickerState, canClose: Boolean, vm: MainViewModel) {
                 }
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(140.dp),
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 24.dp),
+                    modifier = Modifier.fillMaxSize().fadeEdges(40f, 70f),
+                    contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 32.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {

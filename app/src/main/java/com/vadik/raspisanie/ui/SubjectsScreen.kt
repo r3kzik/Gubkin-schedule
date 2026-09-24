@@ -95,8 +95,8 @@ fun SubjectsScreen(state: UiState, vm: MainViewModel) {
     Column(Modifier.fillMaxSize()) {
         GlassTopBar("Предметы", onBack = null)
         LazyColumn(
-            Modifier.fillMaxSize().fadeTopEdge(30f),
-            contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 4.dp, bottom = 20.dp),
+            Modifier.fillMaxSize().fadeEdges(40f, 70f),
+            contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 4.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             item { SectionTitle("Ближайшие задания") }

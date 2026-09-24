@@ -154,9 +154,10 @@ fun MapScreen(state: UiState, vm: MainViewModel) {
         Column(
             Modifier
                 .fillMaxSize()
+                .fadeEdges(40f, 70f)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 14.dp)
-                .padding(top = 10.dp, bottom = 20.dp),
+                .padding(top = 18.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             // ---------------- поиск
