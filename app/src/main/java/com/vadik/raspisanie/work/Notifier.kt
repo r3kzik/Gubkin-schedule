@@ -21,6 +21,8 @@ object Notifier {
     private const val ID_REMINDER = 3
     private const val ID_CHANGES = 1
     private const val ID_CAPTCHA = 2
+    private const val ID_UPDATE = 4
+    private const val CHANNEL_UPDATES = "updates"
 
     fun createChannels(ctx: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -39,6 +41,11 @@ object Notifier {
             NotificationChannel(
                 CHANNEL_SERVICE, "Служебные", NotificationManager.IMPORTANCE_LOW
             ).apply { description = "Например, когда сайт просит ввести капчу" }
+        )
+        nm.createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_UPDATES, "Обновления приложения", NotificationManager.IMPORTANCE_DEFAULT
+            ).apply { description = "Вышла новая версия MyGub" }
         )
     }
 
@@ -106,6 +113,45 @@ object Notifier {
             NotificationManagerCompat.from(ctx).notify(ID_CAPTCHA, n)
         } catch (e: SecurityException) {
         }
+    }
+
+    fun updateAvailable(ctx: Context, info: com.vadik.raspisanie.data.UpdateInfo) {
+        if (!canNotify(ctx)) return
+        val n = NotificationCompat.Builder(ctx, CHANNEL_UPDATES)
+            .setSmallIcon(R.drawable.ic_stat_schedule)
+            .setContentTitle("Доступно обновление MyGub")
+            .setContentText("${info.title} — откройте приложение, чтобы обновить")
+            .setContentIntent(openAppIntent(ctx))
+            .setAutoCancel(true)
+            .build()
+        try {
+            NotificationManagerCompat.from(ctx).notify(ID_UPDATE, n)
+        } catch (e: SecurityException) {
+        }
+    }
+
+    /** Обновление скачано — нажмите, чтобы подтвердить установку. */
+    fun updateConfirm(ctx: Context, confirm: Intent) {
+        if (!canNotify(ctx)) return
+        val pi = PendingIntent.getActivity(
+            ctx, 7, confirm,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val n = NotificationCompat.Builder(ctx, CHANNEL_UPDATES)
+            .setSmallIcon(R.drawable.ic_stat_schedule)
+            .setContentTitle("Обновление MyGub готово")
+            .setContentText("Нажмите, чтобы установить")
+            .setContentIntent(pi)
+            .setAutoCancel(true)
+            .build()
+        try {
+            NotificationManagerCompat.from(ctx).notify(ID_UPDATE, n)
+        } catch (e: SecurityException) {
+        }
+    }
+
+    fun clearUpdate(ctx: Context) {
+        NotificationManagerCompat.from(ctx).cancel(ID_UPDATE)
     }
 
     fun clearCaptcha(ctx: Context) {

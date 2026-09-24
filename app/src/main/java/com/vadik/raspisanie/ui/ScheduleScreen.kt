@@ -121,6 +121,10 @@ private val TABS = listOf(
 
 @Composable
 fun AppRoot(state: UiState, vm: MainViewModel) {
+    if (state.tampered) {
+        TamperScreen()
+        return
+    }
     val settings = state.settings
     val screen = when {
         state.starting -> Screen.Loading
@@ -173,6 +177,7 @@ fun AppRoot(state: UiState, vm: MainViewModel) {
     }
     state.captcha?.let { CaptchaDialog(it, vm) }
     state.hwDraft?.let { HomeworkEditorDialog(it, vm) }
+    if (state.update.showDialog && state.update.info != null) UpdateDialog(state.update, vm)
 }
 
 /** Три вкладки с нижней панелью; содержимое меняется с лёгким сдвигом. */
@@ -310,6 +315,7 @@ fun ScheduleScreen(state: UiState, vm: MainViewModel) {
                 onClose = { vm.dismissChanges() },
             )
         }
+        UpdateBanner(state, vm)
 
         // ---------------- пары
         Spacer(Modifier.height(4.dp))

@@ -18,6 +18,9 @@ import com.vadik.raspisanie.data.Repository
 import com.vadik.raspisanie.data.Settings
 import com.vadik.raspisanie.data.SiteException
 import com.vadik.raspisanie.data.WeekSchedule
+import com.vadik.raspisanie.data.UpdateInfo
+import com.vadik.raspisanie.security.Integrity
+import com.vadik.raspisanie.work.Updater
 import com.vadik.raspisanie.work.AppSync
 import com.vadik.raspisanie.work.Notifier
 import kotlinx.coroutines.CancellationException
@@ -75,6 +78,21 @@ data class LessonDetail(
     val history: List<Change> = emptyList(),
 )
 
+/** Автообновление приложения. */
+data class UpdateState(
+    val info: UpdateInfo? = null,
+    val checking: Boolean = false,
+    val downloading: Boolean = false,
+    /** 0..1, или -1, если размер неизвестен. */
+    val progress: Float = 0f,
+    val message: String? = null,
+    val showDialog: Boolean = false,
+    /** Плашку «вышло обновление» скрыли до следующего запуска. */
+    val bannerHidden: Boolean = false,
+    /** Нужно разрешить MyGub устанавливать приложения. */
+    val needPermission: Boolean = false,
+)
+
 data class UiState(
     val starting: Boolean = true,
     val settings: Settings? = null,
@@ -99,6 +117,9 @@ data class UiState(
     val mapFocus: RoomLocation? = null,
     /** Счётчик, чтобы повторный показ того же места снова запускал анимацию. */
     val mapFocusSeq: Int = 0,
+    val update: UpdateState = UpdateState(),
+    /** Приложение подписано чужим ключом — это не оригинальный MyGub. */
+    val tampered: Boolean = false,
 ) {
     val monday: LocalDate get() = Repository.mondayOf(selectedDate)
 }
@@ -119,7 +140,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         viewModelScope.launch {
+            val original = withContext(Dispatchers.Default) { Integrity.isOriginal(app) }
+            if (!original) _state.update { it.copy(tampered = true) }
+        }
+        viewModelScope.launch {
+            // итог работы системного установщика (отмена, ошибка)
+            Updater.installMessage.collect { msg ->
+                if (msg != null) _state.update { it.copy(update = it.update.copy(downloading = false, message = msg)) }
+            }
+        }
+        viewModelScope.launch {
             val (s, prefs) = withContext(Dispatchers.IO) { repo.settings() to repo.prefs() }
+            if (prefs.autoUpdateCheck) launch { checkUpdates(manual = false) }
             val hw = withContext(Dispatchers.IO) { repo.homework() }
             _state.update { it.copy(prefs = prefs, homework = hw) }
             if (s == null) {
@@ -167,6 +199,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Вызывается, когда приложение снова открыли. */
     fun onResume() {
+        val u = _state.value.update
+        if (u.needPermission && Updater.canInstall(app)) {
+            // вернулись из настроек с разрешением — продолжаем обновление
+            _state.update { it.copy(update = it.update.copy(needPermission = false)) }
+            startUpdate()
+        }
         val today = LocalDate.now()
         if (today != lastResumeDay) {
             // приложение открыли на следующий день — сразу показываем сегодняшний
@@ -476,6 +514,88 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun rawFile() = repo.rawFile()
+
+    // ------------------------------------------------------------ обновления приложения
+
+    private suspend fun checkUpdates(manual: Boolean) {
+        if (_state.value.update.checking) return
+        _state.update { it.copy(update = it.update.copy(checking = true, message = null)) }
+        try {
+            val info = Updater.check(app)
+            _state.update {
+                it.copy(
+                    update = it.update.copy(
+                        info = info,
+                        checking = false,
+                        message = if (manual && info == null) "Установлена последняя версия" else null,
+                        showDialog = manual && info != null,
+                    ),
+                )
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            _state.update {
+                it.copy(
+                    update = it.update.copy(
+                        checking = false,
+                        message = if (manual) "Не удалось проверить: нет связи с GitHub" else null,
+                    ),
+                )
+            }
+        }
+    }
+
+    fun checkUpdatesNow() {
+        viewModelScope.launch { checkUpdates(manual = true) }
+    }
+
+    fun openUpdateDialog() = _state.update { it.copy(update = it.update.copy(showDialog = true, message = null)) }
+
+    fun closeUpdateDialog() = _state.update {
+        it.copy(update = it.update.copy(showDialog = it.update.downloading, needPermission = false))
+    }
+
+    fun hideUpdateBanner() = _state.update { it.copy(update = it.update.copy(bannerHidden = true)) }
+
+    fun allowInstalls(): android.content.Intent = Updater.installPermissionIntent(app)
+
+    fun startUpdate() {
+        val info = _state.value.update.info ?: return
+        if (_state.value.update.downloading) return
+        if (!Updater.canInstall(app)) {
+            _state.update { it.copy(update = it.update.copy(needPermission = true, showDialog = true)) }
+            return
+        }
+        _state.update {
+            it.copy(update = it.update.copy(downloading = true, progress = 0f, message = null, showDialog = true))
+        }
+        viewModelScope.launch {
+            try {
+                val apk = Updater.download(app, info) { p ->
+                    _state.update { it.copy(update = it.update.copy(progress = p)) }
+                }
+                withContext(Dispatchers.IO) { Updater.install(app, apk) }
+                Notifier.clearUpdate(app)
+                _state.update {
+                    it.copy(update = it.update.copy(downloading = false, message = "Подтвердите установку в окне Android"))
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: SecurityException) {
+                _state.update { it.copy(update = it.update.copy(downloading = false, message = e.message)) }
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(
+                        update = it.update.copy(
+                            downloading = false,
+                            message = "Не удалось скачать обновление: ${e.message ?: "нет связи"}",
+                        ),
+                    )
+                }
+            }
+        }
+    }
 
     // ------------------------------------------------------------ карточка пары
 

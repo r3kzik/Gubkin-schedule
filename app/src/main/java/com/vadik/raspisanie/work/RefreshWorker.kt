@@ -39,8 +39,10 @@ class RefreshWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ct
         } catch (e: Exception) {
             // нет сети / сайт лежит — попробуем в следующий раз
         }
-        if (repo.prefs().changeNotify) Notifier.scheduleChanged(applicationContext, changes)
+        val prefs = repo.prefs()
+        if (prefs.changeNotify) Notifier.scheduleChanged(applicationContext, changes)
         AppSync.afterDataChange(applicationContext)
+        Updater.backgroundCheck(applicationContext, prefs.autoUpdateCheck, prefs.autoInstall)
         Result.success()
     }
 

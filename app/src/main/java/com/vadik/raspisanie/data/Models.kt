@@ -97,6 +97,10 @@ data class Prefs(
     val glassPercent: Int = 100,
     /** Иконка приложения перекрашивается в цвет интерфейса. */
     val iconFollowsAccent: Boolean = true,
+    /** Проверять новые версии приложения в фоне. */
+    val autoUpdateCheck: Boolean = true,
+    /** Скачивать и ставить обновление сразу, без вопроса (Android сам подтвердит установку). */
+    val autoInstall: Boolean = false,
 ) {
     /** Пара другой подгруппы (не моей). */
     fun isOtherSubgroup(l: Lesson): Boolean =

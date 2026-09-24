@@ -57,8 +57,14 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        com.vadik.raspisanie.work.Updater.inForeground = true
+    }
+
     override fun onStop() {
         super.onStop()
+        com.vadik.raspisanie.work.Updater.inForeground = false
         // смена цвета иконки — когда приложение ушло в фон
         IconSwitcher.apply(this, vm.state.value.prefs)
     }

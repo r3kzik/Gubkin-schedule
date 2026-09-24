@@ -61,6 +61,8 @@ class Storage(private val dir: File) {
             cornerPercent = o["corner"].int()?.coerceIn(50, 150) ?: d.cornerPercent,
             glassPercent = o["glassPct"].int()?.coerceIn(50, 150) ?: d.glassPercent,
             iconFollowsAccent = o["iconAccent"]?.let { it.truthy() } ?: d.iconFollowsAccent,
+            autoUpdateCheck = o["updCheck"]?.let { it.truthy() } ?: d.autoUpdateCheck,
+            autoInstall = o["updAuto"]?.let { it.truthy() } ?: d.autoInstall,
         )
     } catch (e: Exception) {
         Prefs()
@@ -83,6 +85,8 @@ class Storage(private val dir: File) {
             put("corner", p.cornerPercent)
             put("glassPct", p.glassPercent)
             put("iconAccent", p.iconFollowsAccent)
+            put("updCheck", p.autoUpdateCheck)
+            put("updAuto", p.autoInstall)
         }
         writeAtomic(prefsFile, o.toString())
     }
