@@ -1,6 +1,8 @@
 package com.vadik.raspisanie.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
@@ -69,6 +71,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.vadik.raspisanie.data.Edition
 import com.vadik.raspisanie.data.Repository
 import kotlin.math.sin
 import androidx.compose.foundation.lazy.grid.items as gridItems
@@ -97,6 +100,7 @@ fun OnboardingScreen(ob: OnboardingState, vm: MainViewModel) {
         AnimatedContent(
             targetState = ob.step,
             transitionSpec = {
+                if (Edition.lite) return@AnimatedContent EnterTransition.None togetherWith ExitTransition.None
                 val dir = if (targetState > initialState) 1 else -1
                 (slideInHorizontally(tween(380)) { dir * it / 3 } + fadeIn(tween(380))) togetherWith
                     (slideOutHorizontally(tween(380)) { -dir * it / 4 } + fadeOut(tween(200)))
@@ -159,11 +163,13 @@ private fun WelcomeStep(onStart: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     val appear = remember { Animatable(0f) }
     LaunchedEffect(Unit) { appear.animateTo(1f, spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessLow)) }
-    val inf = rememberInfiniteTransition(label = "float")
-    val t by inf.animateFloat(
-        0f, (2 * Math.PI).toFloat(),
-        infiniteRepeatable(tween(4000, easing = LinearEasing), RepeatMode.Restart), label = "t",
-    )
+    val t = if (Edition.lite) 0f else {
+        val inf = rememberInfiniteTransition(label = "float")
+        inf.animateFloat(
+            0f, (2 * Math.PI).toFloat(),
+            infiniteRepeatable(tween(4000, easing = LinearEasing), RepeatMode.Restart), label = "t",
+        ).value
+    }
     Column(
         Modifier.fillMaxSize().padding(horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,

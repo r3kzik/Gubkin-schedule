@@ -359,7 +359,8 @@ fun skinFor(style: String, scheme: ColorScheme, dark: Boolean, cornerPercent: In
 }
 
 @Composable
-fun AppTheme(prefs: com.vadik.raspisanie.data.Prefs, content: @Composable () -> Unit) {
+fun AppTheme(userPrefs: com.vadik.raspisanie.data.Prefs, content: @Composable () -> Unit) {
+    val prefs = com.vadik.raspisanie.data.Edition.effective(userPrefs)
     val dark = effectiveDark(prefs.style, prefs.theme)
     val scheme = animated(schemeFor(prefs.style, dark, prefs.accent))
     val skin = skinFor(prefs.style, scheme, dark, prefs.cornerPercent, prefs.glassPercent)
