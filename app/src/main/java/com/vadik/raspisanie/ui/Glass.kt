@@ -36,6 +36,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -268,9 +270,9 @@ fun StyledTabBar(items: List<TabItem>, selected: Int, onSelect: (Int) -> Unit) {
     val g = LocalGlass.current
     val cs = MaterialTheme.colorScheme
     when (g.style) {
-        "material" -> androidx.compose.material3.NavigationBar(containerColor = cs.surfaceContainer) {
+        "material" -> NavigationBar(containerColor = cs.surfaceContainer) {
             items.forEachIndexed { i, item ->
-                androidx.compose.material3.NavigationBarItem(
+                NavigationBarItem(
                     selected = i == selected,
                     onClick = { onSelect(i) },
                     icon = { Icon(item.icon, contentDescription = item.title) },
