@@ -5,6 +5,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -298,7 +299,10 @@ fun AppTheme(prefs: com.vadik.raspisanie.data.Prefs, content: @Composable () -> 
     val scheme = animated(schemeFor(prefs.style, dark, prefs.accent))
     val skin = skinFor(prefs.style, scheme, dark, prefs.cornerPercent, prefs.glassPercent)
     CompositionLocalProvider(LocalGlass provides skin) {
-        MaterialTheme(colorScheme = scheme, content = content)
+        MaterialTheme(colorScheme = scheme) {
+            // цвет «по умолчанию» для любого текста и иконок — из темы, а не чёрный
+            CompositionLocalProvider(LocalContentColor provides scheme.onBackground, content = content)
+        }
     }
 }
 
@@ -309,6 +313,8 @@ fun PreviewTheme(style: String, prefs: com.vadik.raspisanie.data.Prefs, content:
     val scheme = schemeFor(style, dark, prefs.accent)
     val skin = skinFor(style, scheme, dark, prefs.cornerPercent, prefs.glassPercent)
     CompositionLocalProvider(LocalGlass provides skin) {
-        MaterialTheme(colorScheme = scheme, content = content)
+        MaterialTheme(colorScheme = scheme) {
+            CompositionLocalProvider(LocalContentColor provides scheme.onBackground, content = content)
+        }
     }
 }

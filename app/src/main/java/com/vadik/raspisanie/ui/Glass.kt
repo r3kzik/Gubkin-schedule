@@ -36,6 +36,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.MaterialTheme
@@ -168,13 +170,15 @@ fun GlassCard(
         spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
         label = "press",
     )
-    Box(
-        modifier
-            .graphicsLayer { scaleX = scale; scaleY = scale }
-            .glass(g, sh, strong, tint)
-            .then(if (onClick != null) Modifier.clickable(interactionSource = src, indication = null, onClick = onClick) else Modifier),
-        content = content,
-    )
+    CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurface) {
+        Box(
+            modifier
+                .graphicsLayer { scaleX = scale; scaleY = scale }
+                .glass(g, sh, strong, tint)
+                .then(if (onClick != null) Modifier.clickable(interactionSource = src, indication = null, onClick = onClick) else Modifier),
+            content = content,
+        )
+    }
 }
 
 /** Круглая стеклянная кнопка с иконкой. */
