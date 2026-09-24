@@ -18,7 +18,12 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -144,13 +149,6 @@ fun MapScreen(state: UiState, vm: MainViewModel) {
     Column(Modifier.fillMaxSize()) {
         GlassTopBar("Карта кампуса", onBack = null)
 
-        CampusMap(
-            selected = selected,
-            pinFloor = focus?.takeIf { it.building.id == selected }?.floorLabel,
-            focusSeq = state.mapFocusSeq,
-            modifier = Modifier.padding(horizontal = 14.dp),
-        ) { id -> selected = if (selected == id) null else id }
-
         Column(
             Modifier
                 .fillMaxSize()
@@ -160,6 +158,13 @@ fun MapScreen(state: UiState, vm: MainViewModel) {
                 .padding(top = 18.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            // ---------------- схема — прокручивается вместе со страницей
+            CampusMap(
+                selected = selected,
+                pinFloor = focus?.takeIf { it.building.id == selected }?.floorLabel,
+                focusSeq = state.mapFocusSeq,
+            ) { id -> selected = if (selected == id) null else id }
+
             // ---------------- поиск
             OutlinedTextField(
                 value = query,
@@ -186,7 +191,7 @@ fun MapScreen(state: UiState, vm: MainViewModel) {
                 BuildingCard(b.id, state, onClose = { selected = null }, onPoi = {})
             } else if (query.isBlank()) {
                 Text(
-                    "Нажмите на здание на схеме, чтобы узнать, что в нём. Схему можно приближать двумя пальцами.",
+                    "Нажмите на здание, чтобы узнать, что в нём. Приближать — двумя пальцами, сбросить — двойным касанием.",
                     style = MaterialTheme.typography.bodySmall,
                     color = cs.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 8.dp),
@@ -444,11 +449,26 @@ private fun CampusMap(
                     .height(hDp)
                     .clip(skinShape(26))
                     .pointerInput(base) {
-                        detectTransformGestures { centroid, pan, zoom, _ ->
-                            val ns = (zoomLevel * zoom).coerceIn(1f, 4f)
-                            val o = centroid - (centroid - offset) * (ns / zoomLevel) + pan
-                            zoomLevel = ns
-                            offset = clamp(o, ns)
+                        // Одним пальцем — прокрутка страницы (жест не перехватываем),
+                        // двумя пальцами — масштаб; если схема уже приближена — её можно двигать и одним.
+                        awaitEachGesture {
+                            awaitFirstDown(requireUnconsumed = false)
+                            do {
+                                val event = awaitPointerEvent()
+                                val fingers = event.changes.count { it.pressed }
+                                if (fingers >= 2 || zoomLevel > 1.01f) {
+                                    val zoom = event.calculateZoom()
+                                    val pan = event.calculatePan()
+                                    val centroid = event.calculateCentroid(useCurrent = true)
+                                    if (zoom != 1f || pan != Offset.Zero) {
+                                        val ns = (zoomLevel * zoom).coerceIn(1f, 4f)
+                                        val o = centroid - (centroid - offset) * (ns / zoomLevel) + pan
+                                        zoomLevel = ns
+                                        offset = clamp(o, ns)
+                                        event.changes.forEach { if (it.positionChanged()) it.consume() }
+                                    }
+                                }
+                            } while (event.changes.any { it.pressed })
                         }
                     }
                     .pointerInput(base) {
