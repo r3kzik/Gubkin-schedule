@@ -2,6 +2,7 @@ name: Собрать APK
 
 on:
   push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -38,7 +39,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
-          name: Расписание 1.0.${{ github.run_number }}
+          name: Расписание 2.0.${{ github.run_number }}
           body: Скачайте raspisanie.apk ниже и установите на телефон.
           files: raspisanie.apk
           make_latest: true

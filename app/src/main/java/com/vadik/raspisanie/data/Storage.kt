@@ -55,6 +55,8 @@ class Storage(private val dir: File) {
             dynamicColor = o["dynamic"]?.let { it.truthy() } ?: d.dynamicColor,
             widgetOpacity = o["widgetOpacity"].int()?.coerceIn(0, 100) ?: d.widgetOpacity,
             widgetTheme = o["widgetTheme"].str() ?: d.widgetTheme,
+            accent = o["accent"].str() ?: d.accent,
+            animatedBackground = o["anim"]?.let { it.truthy() } ?: d.animatedBackground,
         )
     } catch (e: Exception) {
         Prefs()
@@ -71,6 +73,8 @@ class Storage(private val dir: File) {
             put("dynamic", p.dynamicColor)
             put("widgetOpacity", p.widgetOpacity)
             put("widgetTheme", p.widgetTheme)
+            put("accent", p.accent)
+            put("anim", p.animatedBackground)
         }
         writeAtomic(prefsFile, o.toString())
     }

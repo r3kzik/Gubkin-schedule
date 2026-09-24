@@ -85,6 +85,10 @@ data class Prefs(
     val widgetOpacity: Int = 100,
     /** Тема виджета: system | light | dark */
     val widgetTheme: String = "system",
+    /** Цвет интерфейса: dynamic (обои, Android 12+) или один из пресетов (blue, violet, …). */
+    val accent: String = "blue",
+    /** Анимированный «северное сияние» фон. */
+    val animatedBackground: Boolean = true,
 ) {
     /** Пара другой подгруппы (не моей). */
     fun isOtherSubgroup(l: Lesson): Boolean =

@@ -9,6 +9,8 @@ import android.content.Intent
 import android.view.View
 import android.widget.RemoteViews
 import android.content.res.Configuration
+import androidx.core.graphics.ColorUtils
+import com.vadik.raspisanie.data.Accents
 import com.vadik.raspisanie.App
 import com.vadik.raspisanie.R
 import com.vadik.raspisanie.data.Upcoming
@@ -53,14 +55,14 @@ class ScheduleWidget : AppWidgetProvider() {
 
             val settings = repo.settings()
             if (settings == null) {
-                val c0 = palette(ctx, "system")
+                val c0 = palette(ctx, "system", "blue")
                 applyBackground(views, c0.bg, 100)
                 views.setTextViewText(R.id.widget_title, "Расписание")
                 showEmpty(views, "Откройте приложение и выберите группу")
                 return views
             }
             val prefs = repo.prefs()
-            val c = palette(ctx, prefs.widgetTheme)
+            val c = palette(ctx, prefs.widgetTheme, prefs.accent)
             applyBackground(views, c.bg, prefs.widgetOpacity)
             views.setTextColor(R.id.widget_title, c.text)
             views.setTextColor(R.id.widget_group, c.muted)
@@ -127,7 +129,8 @@ class ScheduleWidget : AppWidgetProvider() {
         private class Palette(val bg: Int, val text: Int, val muted: Int, val accent: Int, val red: Int)
 
         /** Цвета виджета: своя тема (светлая/тёмная) или как в системе. */
-        private fun palette(ctx: Context, theme: String): Palette {
+        private fun palette(ctx: Context, theme: String, accentId: String): Palette {
+            val seed = Accents.seedOf(accentId).toInt()
             val systemDark = (ctx.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
                 Configuration.UI_MODE_NIGHT_YES
             val dark = when (theme) {
@@ -136,9 +139,11 @@ class ScheduleWidget : AppWidgetProvider() {
                 else -> systemDark
             }
             return if (dark) {
-                Palette(0xFF1F2226.toInt(), 0xFFE3E2E6.toInt(), 0xFF9AA0A8.toInt(), 0xFFA6C8FF.toInt(), 0xFFFF7A7A.toInt())
+                Palette(0xFF1F2226.toInt(), 0xFFE3E2E6.toInt(), 0xFF9AA0A8.toInt(),
+                    ColorUtils.blendARGB(seed, 0xFFFFFFFF.toInt(), 0.35f), 0xFFFF7A7A.toInt())
             } else {
-                Palette(0xFFFFFFFF.toInt(), 0xFF1A1C1E.toInt(), 0xFF6B7280.toInt(), 0xFF1F5FAF.toInt(), 0xFFD32F2F.toInt())
+                Palette(0xFFFFFFFF.toInt(), 0xFF1A1C1E.toInt(), 0xFF6B7280.toInt(),
+                    ColorUtils.blendARGB(seed, 0xFF000000.toInt(), 0.15f), 0xFFD32F2F.toInt())
             }
         }
 

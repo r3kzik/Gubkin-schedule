@@ -13,6 +13,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -47,95 +53,102 @@ import androidx.compose.ui.unit.dp
 import com.vadik.raspisanie.App
 import com.vadik.raspisanie.data.Repository
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PickerScreen(p: PickerState, canClose: Boolean, vm: MainViewModel) {
     var query by rememberSaveable { mutableStateOf("") }
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(if (p.faculty == null) "Выберите факультет" else "Выберите группу") },
-                navigationIcon = {
-                    if (p.faculty != null) {
-                        IconButton(onClick = { vm.backToFaculties() }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
-                        }
-                    } else if (canClose) {
-                        IconButton(onClick = { vm.closePicker() }) {
-                            Icon(Icons.Filled.Close, contentDescription = "Закрыть")
-                        }
-                    }
-                },
-            )
-        },
-    ) { padding ->
-        Column(Modifier.padding(padding).fillMaxSize()) {
-            when {
-                p.loading -> Column(
-                    Modifier.fillMaxSize().padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    CircularProgressIndicator()
-                    p.message?.let {
-                        Spacer(Modifier.height(12.dp))
-                        Text(it, textAlign = TextAlign.Center)
-                    }
+    Column(Modifier.fillMaxSize()) {
+        GlassTopBar(
+            if (p.faculty == null) "Факультет" else "Группа",
+            onBack = when {
+                p.faculty != null -> ({ vm.backToFaculties() })
+                canClose -> ({ vm.closePicker() })
+                else -> null
+            },
+            backIcon = if (p.faculty != null) Icons.AutoMirrored.Filled.ArrowBack else Icons.Filled.Close,
+        )
+        when {
+            p.loading -> Column(
+                Modifier.fillMaxSize().padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                CircularProgressIndicator()
+                p.message?.let {
+                    Spacer(Modifier.height(12.dp))
+                    Text(it, textAlign = TextAlign.Center)
                 }
+            }
 
-                p.faculty == null && p.faculties.isEmpty() -> Column(
-                    Modifier.fillMaxSize().padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                ) {
+            p.faculty == null && p.faculties.isEmpty() -> Column(
+                Modifier.fillMaxSize().padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Text(p.message ?: "Список факультетов ещё не загружен", textAlign = TextAlign.Center)
+                Spacer(Modifier.height(16.dp))
+                GlassPill("Повторить", selected = true) { vm.retryPicker() }
+                Spacer(Modifier.height(10.dp))
+                GlassPill("Выбрать группу вручную", selected = false) { vm.openPicker() }
+            }
+
+            p.faculty == null -> {
+                p.message?.let {
                     Text(
-                        p.message ?: "Список факультетов ещё не загружен",
-                        textAlign = TextAlign.Center,
+                        it,
+                        Modifier.padding(horizontal = 22.dp, vertical = 8.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Spacer(Modifier.height(16.dp))
-                    Button(onClick = { vm.retryPicker() }) { Text("Повторить") }
-                    TextButton(onClick = { vm.openPicker() }) { Text("Выбрать группу вручную") }
                 }
-
-                p.faculty == null -> {
-                    p.message?.let {
-                        Text(it, Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    LazyColumn(Modifier.fillMaxSize()) {
-                        items(p.faculties, key = { it.id }) { f ->
-                            ListItem(
-                                headlineContent = { Text(f.name) },
-                                modifier = Modifier.clickable { vm.pickFaculty(f) },
+                LazyColumn(
+                    Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    items(p.faculties, key = { it.id }) { f ->
+                        GlassCard(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp), onClick = { vm.pickFaculty(f) }) {
+                            Text(
+                                f.name,
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
                             )
-                            HorizontalDivider()
                         }
                     }
                 }
+            }
 
-                else -> {
-                    OutlinedTextField(
-                        value = query,
-                        onValueChange = { query = it },
-                        label = { Text("Поиск, например ${App.DEFAULT_GROUP}") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
-                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+            else -> {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    label = { Text("Поиск, например ${App.DEFAULT_GROUP}") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(22.dp),
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp),
+                )
+                val q = Repository.normalizeCode(query)
+                val filtered = p.groups.filter { Repository.normalizeCode(it.code).contains(q) }
+                if (filtered.isEmpty()) {
+                    Text(
+                        if (p.groups.isEmpty()) "На этом факультете нет групп с расписанием" else "Ничего не найдено",
+                        Modifier.padding(22.dp),
                     )
-                    val q = Repository.normalizeCode(query)
-                    val filtered = p.groups.filter { Repository.normalizeCode(it.code).contains(q) }
-                    if (filtered.isEmpty()) {
-                        Text(
-                            if (p.groups.isEmpty()) "На этом факультете нет групп с расписанием" else "Ничего не найдено",
-                            Modifier.padding(16.dp),
-                        )
-                    }
-                    LazyColumn(Modifier.fillMaxSize()) {
-                        items(filtered, key = { it.id }) { g ->
-                            ListItem(
-                                headlineContent = { Text(g.code) },
-                                modifier = Modifier.clickable { vm.pickGroup(g) },
+                }
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(140.dp),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    gridItems(filtered, key = { it.id }) { g ->
+                        GlassCard(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), onClick = { vm.pickGroup(g) }) {
+                            Text(
+                                g.code,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
                             )
-                            HorizontalDivider()
                         }
                     }
                 }

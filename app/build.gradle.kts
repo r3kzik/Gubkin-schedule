@@ -14,7 +14,7 @@ android {
         targetSdk = 34
         // номер сборки GitHub -> новая версия ставится поверх старой
         versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
-        versionName = "1.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
+        versionName = "2.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
     }
 
     // Один постоянный ключ подписи: обновления устанавливаются поверх, настройки не теряются.

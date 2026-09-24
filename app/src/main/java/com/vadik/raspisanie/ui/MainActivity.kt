@@ -35,7 +35,7 @@ class MainActivity : ComponentActivity() {
                 else SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
                 enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
             }
-            AppTheme(state.prefs.theme, state.prefs.dynamicColor) {
+            AppTheme(state.prefs.theme, state.prefs.accent) {
                 AppRoot(state, vm)
             }
         }
