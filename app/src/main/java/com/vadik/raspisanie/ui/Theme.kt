@@ -169,10 +169,10 @@ private fun animated(target: ColorScheme): ColorScheme {
 data class StyleInfo(val id: String, val title: String, val description: String)
 
 val STYLES = listOf(
+    StyleInfo("material", "Material You", "Стиль Android: цвета из обоев, тональные карточки"),
     StyleInfo("glass", "Жидкое стекло", "Полупрозрачные карточки и живой цветной фон"),
     StyleInfo("night", "Ночное стекло", "Тёмное дымчатое стекло с неоновым свечением"),
     StyleInfo("ios", "Как в iOS", "Чистые сгруппированные списки, как в «Настройках» iPhone"),
-    StyleInfo("material", "Material You", "Тональные поверхности в стиле Android 14–15"),
 )
 
 /** Тёмная ли тема с учётом стиля: «Ночное стекло» всегда тёмное. */

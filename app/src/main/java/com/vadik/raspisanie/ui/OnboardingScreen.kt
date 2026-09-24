@@ -203,7 +203,7 @@ private fun WelcomeStep(onStart: () -> Unit) {
         Text("Привет! 👋", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(10.dp))
         Text(
-            "Это расписание РГУ нефти и газа им. Губкина. Давай за минуту настроим его под тебя.",
+            "Это MyGub — расписание РГУ нефти и газа им. Губкина. Давай за минуту настроим его под тебя.",
             style = MaterialTheme.typography.bodyLarge,
             color = cs.onSurfaceVariant,
             textAlign = TextAlign.Center,

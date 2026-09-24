@@ -147,7 +147,7 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
             // ---------------- виджет
             SectionTitle("Виджет")
             SettingsCard {
-                Hint("Добавить: долгое нажатие на рабочем столе → Виджеты → «Расписание».")
+                Hint("Добавить: долгое нажатие на рабочем столе → Виджеты → «MyGub».")
                 var opacity by remember(prefs.widgetOpacity) { mutableFloatStateOf(prefs.widgetOpacity.toFloat()) }
                 Label("Непрозрачность фона: ${opacity.roundToInt()} %")
                 Slider(
@@ -180,7 +180,7 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
             }
             Spacer(Modifier.height(16.dp))
             Text(
-                "Расписание 2.0 · есть лёгкая версия «Расписание Lite»",
+                "MyGub 2.0 · есть лёгкая версия MyGub Lite",
                 style = MaterialTheme.typography.labelSmall,
                 color = cs.onSurfaceVariant,
                 modifier = Modifier.padding(start = 22.dp),

@@ -86,11 +86,11 @@ data class Prefs(
     /** Тема виджета: system | light | dark */
     val widgetTheme: String = "system",
     /** Цвет интерфейса: dynamic (обои, Android 12+) или один из пресетов (blue, violet, …). */
-    val accent: String = "blue",
+    val accent: String = "dynamic",
     /** Анимированный «северное сияние» фон. */
     val animatedBackground: Boolean = true,
     /** Стиль оформления: glass | night | ios | material */
-    val style: String = "glass",
+    val style: String = "material",
     /** Скругление углов, % от стандартного для стиля (50–150). */
     val cornerPercent: Int = 100,
     /** Плотность стекла, % (50–150): меньше — прозрачнее. */

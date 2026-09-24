@@ -57,7 +57,7 @@ class ScheduleWidget : AppWidgetProvider() {
             if (settings == null) {
                 val c0 = palette(ctx, "system", "blue")
                 applyBackground(views, c0.bg, 100)
-                views.setTextViewText(R.id.widget_title, "Расписание")
+                views.setTextViewText(R.id.widget_title, "MyGub")
                 showEmpty(views, "Откройте приложение и выберите группу")
                 return views
             }

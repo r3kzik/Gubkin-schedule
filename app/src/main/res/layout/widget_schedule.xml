@@ -30,7 +30,7 @@
                 android:layout_weight="1"
                 android:ellipsize="end"
                 android:maxLines="1"
-                android:text="Расписание"
+                android:text="MyGub"
                 android:textColor="@color/widget_text"
                 android:textSize="15sp"
                 android:textStyle="bold" />
