@@ -105,6 +105,8 @@ import kotlin.math.sin
 private val DAY_NAMES = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
 private val DAY_FULL = listOf("Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье")
 private val DM: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM")
+/** «пятница, 25 сентября» */
+private val HEADER_DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("EEEE, d MMMM", java.util.Locale.forLanguageTag("ru"))
 private val DM_HM: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM в HH:mm")
 
 private enum class Screen(val depth: Int) { Loading(0), Onboarding(0), Main(0), Picker(1), ThemeEditor(1), Detail(2) }
@@ -226,16 +228,16 @@ fun ScheduleScreen(state: UiState, vm: MainViewModel) {
     } else 0f
 
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
-        // ---------------- шапка
+        // ---------------- шапка: сегодняшняя дата крупно, группа мелко под ней
         Row(
-            Modifier.fillMaxWidth().padding(start = 22.dp, end = 16.dp, top = 14.dp, bottom = 12.dp),
+            Modifier.fillMaxWidth().padding(start = 20.dp, end = 14.dp, top = 8.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        settings.groupName,
-                        style = MaterialTheme.typography.headlineMedium,
+                        today.format(HEADER_DATE).replaceFirstChar { it.uppercase() },
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                     )
@@ -243,33 +245,34 @@ fun ScheduleScreen(state: UiState, vm: MainViewModel) {
                     if (androidx.compose.ui.platform.LocalContext.current.packageName.endsWith(".beta")) {
                         Text(
                             "BETA",
-                            style = MaterialTheme.typography.labelMedium,
+                            style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = cs.onTertiary,
                             modifier = Modifier
                                 .padding(start = 8.dp)
                                 .clip(RoundedCornerShape(50))
                                 .background(cs.tertiary)
-                                .padding(horizontal = 8.dp, vertical = 2.dp),
+                                .padding(horizontal = 7.dp, vertical = 1.dp),
                         )
                     }
                 }
                 val sub = listOfNotNull(
-                    state.week?.weekTypeLabel?.replaceFirstChar { it.uppercase() } ?: "Расписание занятий",
-                    if (state.prefs.subgroup != 0) "${state.prefs.subgroup} подгруппа" else null,
+                    settings.groupName,
+                    state.week?.weekTypeLabel,
+                    if (state.prefs.subgroup != 0) "${state.prefs.subgroup} подгр." else null,
                 ).joinToString(" · ")
-                Text(sub, style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
+                Text(sub, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant, maxLines = 1)
             }
-            GlassIconButton(Icons.Filled.Refresh, "Обновить", iconRotation = spin) { vm.refresh() }
+            GlassIconButton(Icons.Filled.Refresh, "Обновить", size = 38.dp, iconRotation = spin) { vm.refresh() }
         }
 
         // ---------------- неделя и дни
         GlassCard(
             Modifier.padding(horizontal = 14.dp).fillMaxWidth(),
-            shape = skinShape(30),
+            shape = skinShape(26),
             strong = true,
         ) {
-            Column(Modifier.padding(horizontal = 6.dp, vertical = 6.dp)) {
+            Column(Modifier.padding(horizontal = 4.dp, vertical = 2.dp)) {
                 WeekHeader(
                     monday = monday,
                     isCurrentWeek = today in days,
@@ -308,7 +311,7 @@ fun ScheduleScreen(state: UiState, vm: MainViewModel) {
         }
 
         // ---------------- пары
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(4.dp))
         // верх списка плавно растворяется, а не обрезается под карточкой с днями
         HorizontalPager(
             state = pagerState,
@@ -338,7 +341,7 @@ private fun WeekHeader(
     onNext: () -> Unit,
     onToday: () -> Unit,
 ) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().height(40.dp), verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onPrev) {
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Предыдущая неделя")
         }
@@ -354,7 +357,7 @@ private fun WeekHeader(
             ) { m ->
                 Text(
                     "${m.format(DM)} – ${m.plusDays(6).format(DM)}",
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
@@ -391,7 +394,7 @@ private fun DayStrip(
             Modifier
                 .offset(x = x)
                 .width(cell)
-                .height(66.dp)
+                .height(54.dp)
                 .padding(horizontal = 3.dp)
                 .clip(skinShape(22))
                 .background(Brush.verticalGradient(listOf(cs.primary, cs.primary.copy(alpha = 0.78f)))),
@@ -412,7 +415,7 @@ private fun DayStrip(
                 Column(
                     Modifier
                         .width(cell)
-                        .height(66.dp)
+                        .height(54.dp)
                         .clip(skinShape(22))
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
@@ -424,7 +427,7 @@ private fun DayStrip(
                     Text(DAY_NAMES[i], style = MaterialTheme.typography.labelMedium, color = fg.copy(alpha = 0.85f))
                     Text(
                         d.dayOfMonth.toString(),
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = if (d == today || isSel) FontWeight.Bold else FontWeight.Normal,
                         color = fg,
                     )
@@ -507,15 +510,15 @@ private fun DayPage(
 
     LazyColumn(
         Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 20.dp),
+        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
             Text(
                 title,
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(start = 8.dp, bottom = 2.dp),
+                modifier = Modifier.padding(start = 8.dp, bottom = 0.dp),
             )
         }
         itemsIndexed(lessons, key = { i, _ -> "$date-$i" }) { i, l ->
