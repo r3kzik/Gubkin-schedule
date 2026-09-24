@@ -52,6 +52,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -460,12 +461,26 @@ private fun LessonCard(l: Lesson, isNow: Boolean, otherSubgroup: Boolean, onClic
                     l.subgroup?.let { SubgroupBadge(it, otherSubgroup) }
                 }
                 Spacer(Modifier.height(6.dp))
-                l.room?.let { InfoRow(Icons.Filled.Place, "ауд. $it", alpha) }
-                l.teacher?.let { InfoRow(Icons.Filled.Person, it, alpha) }
+                val red = changedColor()
+                // заменённые аудитория/преподаватель — красным, как на сайте, и рядом «было»
+                l.room?.let {
+                    InfoRow(
+                        Icons.Filled.Place, "ауд. $it", alpha,
+                        highlight = if (l.roomChanged) red else null,
+                        note = l.oldRoom?.let { o -> "было ${o.substringBefore(" - ")}" },
+                    )
+                }
+                l.teacher?.let {
+                    InfoRow(
+                        Icons.Filled.Person, it, alpha,
+                        highlight = if (l.teacherChanged) red else null,
+                        note = l.oldTeacher?.let { o -> "вместо $o" },
+                    )
+                }
                 val flags = buildList {
                     if (l.cancelled) add("Пара отменена")
-                    if (l.moved) add("Пара перенесена")
-                    if (l.changed && !l.cancelled && !l.moved) add("Есть изменения")
+                    if (l.moved) add(l.movedTo?.let { "Перенесена на $it" } ?: "Пара перенесена")
+                    l.movedFrom?.let { add("Перенесено с $it") }
                 }
                 if (flags.isNotEmpty()) {
                     Spacer(Modifier.height(4.dp))
@@ -473,24 +488,28 @@ private fun LessonCard(l: Lesson, isNow: Boolean, otherSubgroup: Boolean, onClic
                         flags.joinToString(" · "),
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.error,
+                        color = red,
                     )
                 }
-                // первая строка «что изменилось» прямо в карточке, остальное — по нажатию
-                l.changeLines.firstOrNull()?.let {
+                // изменения, которые не видны в строках выше (неизвестные виды) — текстом
+                val shown = l.roomChanged || l.teacherChanged || l.movedFrom != null
+                val otherLines = l.changeLines.filterNot {
+                    it.startsWith("Аудитория") || it.startsWith("Преподаватель") || it.startsWith("Перенесено")
+                }
+                otherLines.firstOrNull()?.let {
                     Text(
-                        it + if (l.changeLines.size > 1) " (ещё ${l.changeLines.size - 1})" else "",
+                        it + if (otherLines.size > 1) " (ещё ${otherLines.size - 1})" else "",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
+                        color = red,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                if (l.changed || l.changeLines.isNotEmpty()) {
+                if (l.changed && !shown && otherLines.isEmpty()) {
                     Text(
-                        "Нажмите, чтобы посмотреть подробности",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = contentColor(0.7f),
+                        "Есть изменения — нажмите, чтобы посмотреть",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = red,
                     )
                 }
             }
@@ -516,13 +535,40 @@ fun SubgroupBadge(n: Int, other: Boolean) {
 }
 
 @Composable
-private fun InfoRow(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, alpha: Float) {
+private fun InfoRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    text: String,
+    alpha: Float,
+    highlight: Color? = null,
+    note: String? = null,
+) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 1.dp)) {
-        Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp), tint = contentColor(alpha * 0.8f))
+        Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp), tint = highlight ?: contentColor(alpha * 0.8f))
         Spacer(Modifier.width(6.dp))
-        Text(text, style = MaterialTheme.typography.bodyMedium, color = contentColor(alpha))
+        Text(
+            text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = highlight?.copy(alpha = alpha) ?: contentColor(alpha),
+            fontWeight = if (highlight != null) FontWeight.Bold else null,
+            modifier = Modifier.weight(1f, fill = false),
+        )
+        if (note != null) {
+            Spacer(Modifier.width(6.dp))
+            Text(
+                note,
+                style = MaterialTheme.typography.bodySmall,
+                color = contentColor(alpha * 0.7f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
+
+/** Красный для изменений (как на сайте), читаемый и в светлой, и в тёмной теме. */
+@Composable
+fun changedColor(): Color =
+    if (MaterialTheme.colorScheme.background.luminance() < 0.5f) Color(0xFFFF7A7A) else Color(0xFFD32F2F)
 
 @Composable
 private fun contentColor(alpha: Float): Color =

@@ -90,28 +90,80 @@ object ScheduleParser {
                 val subject = lo["course"].obj()?.get("name").str()?.takeIf { it.isNotBlank() }
                     ?: lo["name"].str()?.takeIf { it.isNotBlank() }
                     ?: kind ?: "Занятие"
-                val rooms = lo["rooms"].arr().orEmpty().mapNotNull { r ->
-                    val ro = r.obj() ?: return@mapNotNull r.str()
-                    (ro["number"].str() ?: ro["name"].str())?.takeIf { it.isNotBlank() }
-                }.distinct().joinToString(", ")
-                val teachers = lo["teachers"].arr().orEmpty().mapNotNull { teacherName(it) }
-                    .distinct().joinToString(", ")
+                // Формат сайта: rooms/teachers — по основному расписанию, а в "changes"
+                // лежат ЗАМЕНЫ: {"rooms":[…]} и/или {"teachers":[…]}. Сайт показывает замену красным.
+                val changesObj = lo["changes"].obj()
+                val baseRooms = roomsText(lo["rooms"])
+                val newRooms = roomsText(changesObj?.get("rooms"))
+                val baseTeachers = lo["teachers"].arr().orEmpty()
+                val newTeachers = changesObj?.get("teachers").arr().orEmpty()
+                val roomChanged = newRooms.isNotEmpty() && newRooms != baseRooms
+                val teacherChanged = newTeachers.isNotEmpty()
+                val effTeachers = if (teacherChanged) newTeachers else baseTeachers
+                val shortNames = effTeachers.mapNotNull { teacherName(it) }.distinct().joinToString(", ")
+                val fullNames = effTeachers.mapNotNull { fullName(it) }.distinct().joinToString(", ")
+                val oldShort = baseTeachers.mapNotNull { teacherName(it) }.distinct().joinToString(", ")
+                    .takeIf { teacherChanged && it.isNotBlank() && it != shortNames }
+                val oldFull = baseTeachers.mapNotNull { fullName(it) }.distinct().joinToString(", ")
+                    .takeIf { teacherChanged && it.isNotBlank() }
+                // перенос: у новой пары есть movedFrom (+ номер «кусочка» времени), у старой — isMoved + movedTo
+                val movedFrom = lo["movedFrom"].str()?.takeIf { it.isNotBlank() }?.let { d ->
+                    val t = lo["movedFromStartTimeChunkId"].int()?.let { chunks.getOrNull(it) }
+                        ?.substringBefore("-")?.trim()
+                    shortDate(d) + (t?.let { " в $it" } ?: "")
+                }
+                val movedTo = lo["movedTo"].str()?.takeIf { it.isNotBlank() }?.let { d ->
+                    val t = lo["movedStartTimeChunkId"].int()?.let { chunks.getOrNull(it) }
+                        ?.substringBefore("-")?.trim()
+                    shortDate(d) + (t?.let { " в $it" } ?: "")
+                }
+                val moved = lo["isMoved"].truthy()
+
+                val lines = mutableListOf<String>()
+                if (roomChanged) {
+                    lines += if (baseRooms.isNotEmpty()) "Аудитория: $baseRooms → $newRooms" else "Аудитория: $newRooms"
+                }
+                if (teacherChanged) {
+                    lines += if (oldFull != null && oldFull != fullNames) "Преподаватель: $oldFull → $fullNames"
+                    else "Преподаватель (замена): $fullNames"
+                }
+                if (movedFrom != null) lines += "Перенесено с $movedFrom"
+                if (moved && movedTo != null) lines += "Перенесено на $movedTo"
+                // прочие, пока неизвестные виды изменений — общим разбором
+                val handled = setOf("rooms", "teachers").filter { changesObj?.get(it) is JsonArray }
+                val rest = if (changesObj != null) {
+                    JsonObject(lo + ("changes" to JsonObject(changesObj.filterKeys { it !in handled })))
+                } else lo
+                lines += changeLines(rest)
+
+                val info = lo["course"].obj()?.get("additionalInfo").str()?.trim()?.takeIf { it.isNotEmpty() }
+                val department = lo["divisions"].arr().orEmpty()
+                    .mapNotNull { it.obj()?.get("name").str()?.trim()?.takeIf { n -> n.isNotEmpty() } }
+                    .distinct().joinToString(", ").ifBlank { null }
+
                 lessons += Lesson(
                     weekDay = lo["weekDayNumber"].int() ?: continue,
                     start = start,
                     end = end.orEmpty(),
                     subject = subject,
                     kind = kind,
-                    room = rooms.ifBlank { null },
-                    teacher = teachers.ifBlank { null },
+                    room = (if (roomChanged) newRooms else baseRooms).ifBlank { null },
+                    teacher = shortNames.ifBlank { null },
                     cancelled = lo["isCanceled"].truthy() || lo["isCancelled"].truthy(),
-                    moved = lo["isMoved"].truthy(),
-                    changed = lo["changes"].truthy(),
+                    moved = moved,
+                    changed = roomChanged || teacherChanged || movedFrom != null || lines.isNotEmpty(),
                     subgroup = detectSubgroup(lo, mine, myCode),
-                    teacherFull = lo["teachers"].arr().orEmpty().mapNotNull { fullName(it) }
-                        .distinct().joinToString(", ").ifBlank { null },
-                    changeLines = changeLines(lo),
+                    teacherFull = fullNames.ifBlank { null },
+                    changeLines = lines.distinct(),
                     raw = runCatching { pretty.encodeToString(JsonElement.serializer(), lo) }.getOrNull(),
+                    roomChanged = roomChanged,
+                    oldRoom = baseRooms.takeIf { roomChanged && it.isNotEmpty() },
+                    teacherChanged = teacherChanged,
+                    oldTeacher = oldShort,
+                    movedFrom = movedFrom,
+                    movedTo = movedTo,
+                    info = info,
+                    department = department,
                 )
             }
         }
@@ -187,6 +239,11 @@ object ScheduleParser {
     }
 
     private fun detectSubgroup(lesson: JsonObject, mine: JsonObject?, myCode: String): Int? {
+        // формат сайта: "subgroup": 0 — вся группа, 1/2 — подгруппа
+        val explicit = lesson["subgroup"]
+        if (explicit is JsonPrimitive && explicit !is JsonNull) {
+            explicit.str()?.trim()?.toIntOrNull()?.let { return it.takeIf { n -> n in 1..9 } }
+        }
         keySubgroup(lesson)?.let { return it }
         if (mine != null) {
             keySubgroup(mine)?.let { return it }
@@ -220,6 +277,7 @@ object ScheduleParser {
     private val OLD_KEYS = listOf("old", "from", "before", "prev", "previous", "was", "original")
     private val NEW_KEYS = listOf("new", "to", "after", "next", "now", "current", "replacement")
     private val EXTRA_KEY = Regex("(?i)(old|original|prev|replac|substit|zamen|was)")
+    private val KNOWN_KEYS = setOf("movedFrom", "movedTo", "movedStartTimeChunkId", "movedFromStartTimeChunkId")
 
     private fun label(key: String): String {
         val k = key.lowercase()
@@ -290,10 +348,21 @@ object ScheduleParser {
             is JsonObject -> out += renderChangeObject(c, null)
         }
         for ((k, v) in lesson) {
-            if (k == "changes" || !EXTRA_KEY.containsMatchIn(k)) continue
+            if (k == "changes" || k in KNOWN_KEYS || !EXTRA_KEY.containsMatchIn(k)) continue
             valueText(v)?.takeIf { it != "нет" }?.let { out += "${label(k)}: $it" }
         }
         return out.distinct()
+    }
+
+    private fun roomsText(el: JsonElement?): String = el.arr().orEmpty().mapNotNull { r ->
+        val ro = r.obj() ?: return@mapNotNull r.str()
+        (ro["number"].str() ?: ro["name"].str())?.trim()?.takeIf { it.isNotBlank() }
+    }.distinct().joinToString(", ")
+
+    /** "18-09-2026" -> "18.09" */
+    private fun shortDate(s: String): String {
+        val p = s.trim().split('-', '.', '/')
+        return if (p.size == 3 && p[0].length <= 2) "%02d.%02d".format(p[0].toIntOrNull() ?: 0, p[1].toIntOrNull() ?: 0) else s
     }
 
     /** Полное ФИО: "Иванов Иван Петрович". */

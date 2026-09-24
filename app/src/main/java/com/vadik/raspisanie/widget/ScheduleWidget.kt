@@ -92,9 +92,14 @@ class ScheduleWidget : AppWidgetProvider() {
                         val details = buildList {
                             if (l.cancelled) add("отменена")
                             if (l.moved) add("перенесена")
-                            l.room?.let { add("ауд. $it") }
+                            l.movedFrom?.let { add("перенесено с $it") }
+                            l.room?.let {
+                                add("ауд. ${it.substringBefore(" - ")}" + if (l.roomChanged) " (замена)" else "")
+                            }
+                            if (l.teacherChanged) l.teacher?.let { add("преп. $it (замена)") }
                             l.kind?.let { add(it) }
                         }.joinToString(" · ")
+                        val hasChange = l.roomChanged || l.teacherChanged || l.movedFrom != null
                         row.setTextViewText(R.id.row_details, details)
                         val color = when {
                             i == day.currentIndex -> accent
@@ -103,7 +108,7 @@ class ScheduleWidget : AppWidgetProvider() {
                         }
                         row.setTextColor(R.id.row_time, if (i == day.currentIndex) accent else color)
                         row.setTextColor(R.id.row_subject, color)
-                        row.setTextColor(R.id.row_details, muted)
+                        row.setTextColor(R.id.row_details, if (hasChange && !inactive) c.red else muted)
                         views.addView(R.id.widget_list, row)
                     }
                     if (day.lessons.size > MAX_ROWS) {
@@ -119,7 +124,7 @@ class ScheduleWidget : AppWidgetProvider() {
             return views
         }
 
-        private class Palette(val bg: Int, val text: Int, val muted: Int, val accent: Int)
+        private class Palette(val bg: Int, val text: Int, val muted: Int, val accent: Int, val red: Int)
 
         /** Цвета виджета: своя тема (светлая/тёмная) или как в системе. */
         private fun palette(ctx: Context, theme: String): Palette {
@@ -131,9 +136,9 @@ class ScheduleWidget : AppWidgetProvider() {
                 else -> systemDark
             }
             return if (dark) {
-                Palette(0xFF1F2226.toInt(), 0xFFE3E2E6.toInt(), 0xFF9AA0A8.toInt(), 0xFFA6C8FF.toInt())
+                Palette(0xFF1F2226.toInt(), 0xFFE3E2E6.toInt(), 0xFF9AA0A8.toInt(), 0xFFA6C8FF.toInt(), 0xFFFF7A7A.toInt())
             } else {
-                Palette(0xFFFFFFFF.toInt(), 0xFF1A1C1E.toInt(), 0xFF6B7280.toInt(), 0xFF1F5FAF.toInt())
+                Palette(0xFFFFFFFF.toInt(), 0xFF1A1C1E.toInt(), 0xFF6B7280.toInt(), 0xFF1F5FAF.toInt(), 0xFFD32F2F.toInt())
             }
         }
 

@@ -31,8 +31,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vadik.raspisanie.data.Prefs
@@ -101,9 +103,24 @@ fun LessonScreen(detail: LessonDetail, prefs: Prefs, onBack: () -> Unit) {
             val date = detail.date
             InfoLine("Когда", "${DAY_FULL_NAMES[date.dayOfWeek.value - 1]}, ${date.format(D_M)} · " +
                 if (l.end.isNotBlank()) "${l.start}–${l.end}" else l.start)
-            InfoLine("Аудитория", l.room ?: "не указана")
-            InfoLine("Преподаватель", l.teacherFull ?: l.teacher ?: "не указан")
+            val red = changedColor()
+            InfoLine(
+                if (l.roomChanged) "Аудитория (замена)" else "Аудитория",
+                l.room ?: "не указана",
+                highlight = if (l.roomChanged) red else null,
+                was = l.oldRoom,
+            )
+            InfoLine(
+                if (l.teacherChanged) "Преподаватель (замена)" else "Преподаватель",
+                l.teacherFull ?: l.teacher ?: "не указан",
+                highlight = if (l.teacherChanged) red else null,
+                was = l.oldTeacher,
+            )
+            l.movedFrom?.let { InfoLine("Перенос", "Перенесено с $it", highlight = red) }
+            if (l.moved) InfoLine("Перенос", l.movedTo?.let { "Перенесена на $it" } ?: "Пара перенесена", highlight = red)
             if (l.subgroup != null) InfoLine("Подгруппа", "${l.subgroup}-я подгруппа")
+            l.department?.let { InfoLine("Кафедра", it) }
+            l.info?.let { InfoLine("Доп. информация", it) }
 
             HorizontalDivider(Modifier.padding(vertical = 12.dp))
 
@@ -128,11 +145,8 @@ fun LessonScreen(detail: LessonDetail, prefs: Prefs, onBack: () -> Unit) {
             }
             if (nothing) {
                 Text(
-                    if (l.changed) {
-                        "Сайт отметил пару как изменённую, но не уточнил, что именно. " +
-                            "Подробности могут быть в разделе «Данные с сайта» ниже. Если там что-то есть, " +
-                            "отправьте данные через Настройки → «Отправить данные расписания», и я научу приложение это показывать."
-                    } else "Изменений нет.",
+                    if (l.changed) "Сайт отметил пару как изменённую. Подробности — в разделе «Данные с сайта» ниже."
+                    else "Изменений нет.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
@@ -159,10 +173,23 @@ fun LessonScreen(detail: LessonDetail, prefs: Prefs, onBack: () -> Unit) {
 }
 
 @Composable
-private fun InfoLine(label: String, value: String) {
+private fun InfoLine(label: String, value: String, highlight: Color? = null, was: String? = null) {
     Column(Modifier.padding(vertical = 5.dp)) {
-        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, style = MaterialTheme.typography.bodyLarge)
+        Text(label, style = MaterialTheme.typography.labelMedium, color = highlight ?: MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            value,
+            style = MaterialTheme.typography.bodyLarge,
+            color = highlight ?: Color.Unspecified,
+            fontWeight = if (highlight != null) FontWeight.Bold else null,
+        )
+        if (was != null) {
+            Text(
+                "по расписанию: $was",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textDecoration = TextDecoration.LineThrough,
+            )
+        }
     }
 }
 

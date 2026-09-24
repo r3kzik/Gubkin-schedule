@@ -23,6 +23,18 @@ data class Lesson(
     val changeLines: List<String> = emptyList(),
     /** Исходные данные пары с сайта (JSON) — для экрана подробностей. */
     val raw: String? = null,
+    /** Аудитория заменена (показывать красным, как на сайте); oldRoom — какая была по расписанию. */
+    val roomChanged: Boolean = false,
+    val oldRoom: String? = null,
+    /** Преподаватель заменён; oldTeacher — кто был по расписанию (если сайт его указал). */
+    val teacherChanged: Boolean = false,
+    val oldTeacher: String? = null,
+    /** «18.09 в 10:15» — откуда перенесена эта пара / куда перенесена отменённая. */
+    val movedFrom: String? = null,
+    val movedTo: String? = null,
+    /** Доп. информация к паре и кафедра. */
+    val info: String? = null,
+    val department: String? = null,
 )
 
 /** День недели из ответа сайта: дата в формате dd-MM-yyyy и номер дня. */
@@ -39,8 +51,8 @@ data class WeekSchedule(
     /** Пары на конкретную дату, отсортированные по времени. */
     fun lessonsOn(date: LocalDate): List<Lesson> {
         val key = date.format(SITE_DATE)
-        val wd = days.firstOrNull { it.date == key }?.weekDayNumber
-            ?: date.dayOfWeek.value
+        val wd = if (days.isEmpty()) date.dayOfWeek.value - 1 // на сайте понедельник = 0
+        else days.firstOrNull { it.date == key }?.weekDayNumber ?: return emptyList()
         return lessons.filter { it.weekDay == wd }.sortedBy { timeKey(it.start) }
     }
 

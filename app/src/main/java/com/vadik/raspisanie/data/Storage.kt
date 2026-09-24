@@ -185,6 +185,14 @@ class Storage(private val dir: File) {
                             put("chg", buildJsonArray { l.changeLines.forEach { add(JsonPrimitive(it)) } })
                         }
                         l.raw?.let { put("raw", it) }
+                        if (l.roomChanged) put("rc", true)
+                        l.oldRoom?.let { put("or", it) }
+                        if (l.teacherChanged) put("tc", true)
+                        l.oldTeacher?.let { put("ot", it) }
+                        l.movedFrom?.let { put("mf", it) }
+                        l.movedTo?.let { put("mt", it) }
+                        l.info?.let { put("info", it) }
+                        l.department?.let { put("dep", it) }
                     })
                 }
             })
@@ -217,6 +225,14 @@ class Storage(private val dir: File) {
                         teacherFull = x["tf"].str(),
                         changeLines = x["chg"].arr().orEmpty().mapNotNull { it.str() },
                         raw = x["raw"].str(),
+                        roomChanged = x["rc"].truthy(),
+                        oldRoom = x["or"].str(),
+                        teacherChanged = x["tc"].truthy(),
+                        oldTeacher = x["ot"].str(),
+                        movedFrom = x["mf"].str(),
+                        movedTo = x["mt"].str(),
+                        info = x["info"].str(),
+                        department = x["dep"].str(),
                     )
                 },
                 fetchedAt = o["fetchedAt"].str()?.toLongOrNull() ?: 0L,
