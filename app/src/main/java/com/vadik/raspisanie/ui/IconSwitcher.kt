@@ -17,9 +17,8 @@ object IconSwitcher {
     private fun cls(id: String) = "$NS.Launcher" + id.replaceFirstChar { it.uppercase() }
 
     fun apply(ctx: Context, prefs: Prefs) {
-        val target = if (!prefs.iconFollowsAccent || prefs.accent == "dynamic" ||
-            Accents.presets.none { it.id == prefs.accent }
-        ) "blue" else prefs.accent
+        val target = if (!prefs.iconFollowsAccent || prefs.accent == "dynamic") "blue"
+        else Accents.nearestPresetId(prefs.accent)
         val pm = ctx.packageManager
         fun enabled(id: String): Boolean {
             val st = pm.getComponentEnabledSetting(ComponentName(ctx.packageName, cls(id)))

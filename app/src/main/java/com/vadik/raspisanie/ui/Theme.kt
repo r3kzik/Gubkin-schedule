@@ -47,6 +47,8 @@ data class GlassColors(
     val cornerScale: Float = 1f,
     /** Насколько карточка «проседает» при нажатии. */
     val pressScale: Float = 0.965f,
+    /** Фон — яркий градиент во весь экран (стиль «Градиент»). */
+    val gradient: Boolean = false,
 )
 
 val LocalGlass = staticCompositionLocalOf {
@@ -173,11 +175,14 @@ val STYLES = listOf(
     StyleInfo("glass", "Жидкое стекло", "Полупрозрачные карточки и живой цветной фон"),
     StyleInfo("night", "Ночное стекло", "Тёмное дымчатое стекло с неоновым свечением"),
     StyleInfo("ios", "Как в iOS", "Чистые сгруппированные списки, как в «Настройках» iPhone"),
+    StyleInfo("gradient", "Градиент", "Сочный переливающийся фон и белые матовые карточки"),
+    StyleInfo("amoled", "AMOLED", "Чистый чёрный с тонкой цветной обводкой — бережёт батарею"),
+    StyleInfo("paper", "Бумага", "Тёплый кремовый фон и спокойные карточки, как в заметках"),
 )
 
 /** Тёмная ли тема с учётом стиля: «Ночное стекло» всегда тёмное. */
 @Composable
-fun effectiveDark(style: String, mode: String): Boolean = style == "night" || isDark(mode)
+fun effectiveDark(style: String, mode: String): Boolean = style == "night" || style == "amoled" || isDark(mode)
 
 /** iOS: нейтральные системные серые вместо тонированных поверхностей. */
 private fun iosNeutral(base: ColorScheme, dark: Boolean): ColorScheme = if (!dark) base.copy(
@@ -217,6 +222,23 @@ fun schemeFor(style: String, dark: Boolean, accent: String): ColorScheme {
             dark,
         )
         "night" -> nightScheme(base)
+        "amoled" -> base.copy(
+            background = Color.Black, surface = Color.Black,
+            surfaceContainerLowest = Color.Black, surfaceContainerLow = Color(0xFF080808),
+            surfaceContainer = Color(0xFF0E0E10), surfaceContainerHigh = Color(0xFF151518),
+            surfaceContainerHighest = Color(0xFF1C1C20),
+        )
+        "paper" -> if (!dark) base.copy(
+            background = Color(0xFFF5EFE3), surface = Color(0xFFFFFCF6), onSurface = Color(0xFF2B2620),
+            onBackground = Color(0xFF2B2620), surfaceVariant = Color(0xFFEDE5D5), onSurfaceVariant = Color(0xFF6E6456),
+            surfaceContainer = Color(0xFFFBF6EC), surfaceContainerHigh = Color(0xFFFFFCF6),
+            surfaceContainerHighest = Color(0xFFF1EADC), outlineVariant = Color(0xFFE2D8C4),
+        ) else base.copy(
+            background = Color(0xFF1B1914), surface = Color(0xFF24211B), onSurface = Color(0xFFEDE6D8),
+            onBackground = Color(0xFFEDE6D8), surfaceVariant = Color(0xFF2E2A22), onSurfaceVariant = Color(0xFFB5AB98),
+            surfaceContainer = Color(0xFF211E18), surfaceContainerHigh = Color(0xFF2A261F),
+            surfaceContainerHighest = Color(0xFF332E25), outlineVariant = Color(0xFF3D372C),
+        )
         else -> base
     }
 }
@@ -254,6 +276,43 @@ fun skinFor(style: String, scheme: ColorScheme, dark: Boolean, cornerPercent: In
             base = scheme.background,
             changed = if (dark) Color(0xFFFF6961) else Color(0xFFFF3B30),
             style = "ios", flat = true, cornerScale = 0.62f * corner, pressScale = 0.985f,
+        )
+        "amoled" -> GlassColors(
+            dark = true,
+            fill = Color(0xFF0C0C0E),
+            fillStrong = Color(0xFF131316),
+            sheen = Color.Transparent,
+            borderTop = p.copy(alpha = 0.45f),
+            borderBottom = p.copy(alpha = 0.12f),
+            aurora = emptyList(),
+            base = Color.Black,
+            changed = Color(0xFFFF7A7A),
+            style = "amoled", flat = true, cornerScale = 0.9f * corner, pressScale = 0.975f,
+        )
+        "paper" -> GlassColors(
+            dark = dark,
+            fill = scheme.surface,
+            fillStrong = scheme.surfaceContainerHigh,
+            sheen = Color.Transparent,
+            borderTop = scheme.outlineVariant,
+            borderBottom = scheme.outlineVariant,
+            aurora = emptyList(),
+            base = scheme.background,
+            changed = if (dark) Color(0xFFFF8A80) else Color(0xFFC62828),
+            style = "paper", flat = true, cornerScale = 0.75f * corner, pressScale = 0.98f,
+        )
+        "gradient" -> GlassColors(
+            dark = dark,
+            fill = (if (dark) Color.Black else Color.White).copy(alpha = al(if (dark) 0.30f else 0.62f)),
+            fillStrong = (if (dark) Color.Black else Color.White).copy(alpha = al(if (dark) 0.42f else 0.78f)),
+            sheen = Color.White.copy(alpha = if (dark) 0.06f else 0.35f),
+            borderTop = Color.White.copy(alpha = if (dark) 0.25f else 0.85f),
+            borderBottom = Color.White.copy(alpha = 0.1f),
+            // пятна поверх градиента — светлые блики
+            aurora = listOf(Color.White.copy(alpha = if (dark) 0.10f else 0.35f), Color.White.copy(alpha = if (dark) 0.06f else 0.25f), scheme.tertiary.copy(alpha = 0.35f)),
+            base = scheme.background,
+            changed = if (dark) Color(0xFFFF8A80) else Color(0xFFC62828),
+            style = "gradient", cornerScale = corner, gradient = true,
         )
         "material" -> GlassColors(
             dark = dark,

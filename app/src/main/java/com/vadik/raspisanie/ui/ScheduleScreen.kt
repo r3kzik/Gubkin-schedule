@@ -315,21 +315,11 @@ fun ScheduleScreen(state: UiState, vm: MainViewModel) {
         // верх списка плавно растворяется, а не обрезается под карточкой с днями
         HorizontalPager(
             state = pagerState,
-            modifier = Modifier.weight(1f).fillMaxWidth().fadeTopEdge(),
+            modifier = Modifier.weight(1f).fillMaxWidth().fadeEdges(),
         ) { page ->
-            DayPage(days[page], today, state.week, state.refreshing, state.prefs, state.homework, onWhere = { vm.showOnMap(it.room) }) { d, l -> vm.openLesson(d, l) }
+            DayPage(days[page], today, state.week, state.refreshing, state.prefs, state.homework, updatedText(state.week?.fetchedAt), onWhere = { vm.showOnMap(it.room) }) { d, l -> vm.openLesson(d, l) }
         }
 
-        val fetched = state.week?.fetchedAt
-        Text(
-            text = if (fetched != null && fetched > 0) {
-                "Обновлено " + Instant.ofEpochMilli(fetched).atZone(ZoneId.systemDefault()).format(DM_HM)
-            } else "Ещё не загружено",
-            style = MaterialTheme.typography.labelSmall,
-            color = cs.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        )
     }
 }
 
@@ -477,6 +467,7 @@ private fun DayPage(
     refreshing: Boolean,
     prefs: Prefs,
     homework: List<Homework>,
+    updated: String,
     onWhere: (Lesson) -> Unit,
     onOpen: (LocalDate, Lesson) -> Unit,
 ) {
@@ -487,12 +478,13 @@ private fun DayPage(
             if (refreshing) "⏳" else "📭",
             title,
             if (refreshing) "Загружаю расписание…" else "Нет сохранённого расписания на эту неделю. Нажмите ⟳ вверху.",
+            updated,
         )
         return
     }
     val lessons = week.lessonsOn(date).filter { prefs.shows(it) }
     if (lessons.isEmpty()) {
-        EmptyState("🎉", title, "Пар нет — можно отдохнуть")
+        EmptyState("🎉", title, "Пар нет — можно отдохнуть", updated)
         return
     }
     // раз в 30 секунд обновляем «идёт сейчас» и прогресс
@@ -510,7 +502,7 @@ private fun DayPage(
 
     LazyColumn(
         Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 20.dp),
+        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 40.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
@@ -553,8 +545,23 @@ private fun DayPage(
                 },
             ) { onOpen(date, l) }
         }
+        // «Обновлено …» — в самом конце списка, уезжает вместе с парами
+        item {
+            Text(
+                updated,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            )
+        }
     }
 }
+
+private fun updatedText(fetched: Long?): String =
+    if (fetched != null && fetched > 0) {
+        "Обновлено " + Instant.ofEpochMilli(fetched).atZone(ZoneId.systemDefault()).format(DM_HM)
+    } else "Ещё не загружено"
 
 private fun formatIn(min: Int): String = when {
     min < 60 -> "через $min мин"
@@ -564,7 +571,7 @@ private fun formatIn(min: Int): String = when {
 
 /** Пустой день: большой эмодзи мягко «парит». */
 @Composable
-private fun EmptyState(emoji: String, title: String, text: String) {
+private fun EmptyState(emoji: String, title: String, text: String, updated: String) {
     val inf = rememberInfiniteTransition(label = "float")
     val t by inf.animateFloat(
         0f, (2 * Math.PI).toFloat(),
@@ -585,6 +592,12 @@ private fun EmptyState(emoji: String, title: String, text: String) {
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(14.dp))
+                Text(
+                    updated,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }

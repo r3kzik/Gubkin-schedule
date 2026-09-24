@@ -88,10 +88,16 @@ fun AuroraBackground(animated: Boolean, content: @Composable BoxScope.() -> Unit
         Box(Modifier.fillMaxSize().background(g.base), content = content)
         return
     }
+    val cs = MaterialTheme.colorScheme
+    // «Градиент»: сочный фон из оттенков темы (светлые контейнеры днём, тёмные — ночью)
+    val bg = if (g.gradient) Brush.linearGradient(
+        listOf(cs.primaryContainer, cs.tertiaryContainer, cs.secondaryContainer),
+        start = Offset.Zero, end = Offset.Infinite,
+    ) else androidx.compose.ui.graphics.SolidColor(g.base)
     Box(
         Modifier
             .fillMaxSize()
-            .background(g.base)
+            .background(bg)
             .drawBehind {
                 val t = phase?.value ?: 0.8f
                 val w = size.width
@@ -147,6 +153,23 @@ fun Modifier.fadeTopEdge(fadePx: Float = 60f): Modifier = this
         drawContent()
         drawRect(
             brush = Brush.verticalGradient(0f to Color.Transparent, fadePx / size.height.coerceAtLeast(1f) to Color.Black),
+            blendMode = BlendMode.DstIn,
+        )
+    }
+
+/** Растворение и верхнего, и нижнего края списка (под шапкой и над панелью вкладок). */
+fun Modifier.fadeEdges(topPx: Float = 60f, bottomPx: Float = 70f): Modifier = this
+    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+    .drawWithContent {
+        drawContent()
+        val h = size.height.coerceAtLeast(1f)
+        drawRect(
+            brush = Brush.verticalGradient(
+                0f to Color.Transparent,
+                (topPx / h).coerceAtMost(0.4f) to Color.Black,
+                (1f - bottomPx / h).coerceAtLeast(0.6f) to Color.Black,
+                1f to Color.Transparent,
+            ),
             blendMode = BlendMode.DstIn,
         )
     }
@@ -285,7 +308,7 @@ fun StyledTabBar(items: List<TabItem>, selected: Int, onSelect: (Int) -> Unit) {
             }
         }
 
-        "ios" -> Column(Modifier.fillMaxWidth().background(cs.surface.copy(alpha = 0.94f))) {
+        "ios", "paper" -> Column(Modifier.fillMaxWidth().background(cs.surface.copy(alpha = 0.94f))) {
             Box(Modifier.fillMaxWidth().height(0.5.dp).background(cs.outlineVariant))
             Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(top = 6.dp, bottom = 4.dp)) {
                 items.forEachIndexed { i, item ->
