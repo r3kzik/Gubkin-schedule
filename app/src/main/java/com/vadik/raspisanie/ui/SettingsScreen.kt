@@ -164,7 +164,57 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
                 supportingContent = { Text("Последний ответ сайта файлом — пригодится, если что-то отображается неправильно") },
                 modifier = Modifier.clickable { shareRaw(ctx, vm.rawFile()) },
             )
+
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
+            // ---------------- поддержка
+            Section("Поддержка")
+            ListItem(
+                headlineContent = { Text("Написать в поддержку") },
+                supportingContent = { Text("Вопрос или проблема — ответ в Telegram $AUTHOR_TG") },
+                modifier = Modifier.clickable { openTelegram(ctx) },
+            )
+            ListItem(
+                headlineContent = { Text("Предложить улучшение") },
+                supportingContent = { Text("Идея, чего не хватает в MyGub") },
+                modifier = Modifier.clickable { openTelegram(ctx) },
+            )
+
+            // ---------------- автор
+            Spacer(Modifier.height(16.dp))
+            Column(
+                Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+                horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+            ) {
+                Text("MyGub Lite", style = MaterialTheme.typography.titleMedium)
+                Text("Создатель и разработчик", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    AUTHOR_TG,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable { openTelegram(ctx) }.padding(4.dp),
+                )
+                Text(
+                    "© 2026 $AUTHOR_TG. Все права защищены. Копирование и распространение без согласия автора запрещены. " +
+                        "Неофициальное приложение, не связано с РГУ им. Губкина.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+            }
         }
+    }
+}
+
+const val AUTHOR_TG = "@Bomb0clat67"
+
+private fun openTelegram(ctx: Context) {
+    try {
+        ctx.startActivity(
+            Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://t.me/Bomb0clat67")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+    } catch (e: Exception) {
+        Toast.makeText(ctx, "Telegram: $AUTHOR_TG", Toast.LENGTH_LONG).show()
     }
 }
 
