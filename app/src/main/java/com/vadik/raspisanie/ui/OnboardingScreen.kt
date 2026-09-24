@@ -218,7 +218,13 @@ private fun WelcomeStep(onStart: () -> Unit) {
             }
         }
         Spacer(Modifier.weight(1f))
-        PrimaryButton("Начать", modifier = Modifier.padding(bottom = 16.dp), onClick = onStart)
+        PrimaryButton("Начать", modifier = Modifier.padding(bottom = 10.dp), onClick = onStart)
+        Text(
+            "Автор: $AUTHOR_TG",
+            style = MaterialTheme.typography.labelMedium,
+            color = cs.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 12.dp),
+        )
     }
 }
 

@@ -55,6 +55,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import com.vadik.raspisanie.data.Accents
@@ -170,6 +171,17 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
             }
 
             // ---------------- помощь
+            SectionTitle("Поддержка")
+            SettingsCard {
+                NavRow("Написать в поддержку", "Вопрос или проблема — ответ в Telegram $AUTHOR_TG") {
+                    openTelegram(ctx, "Поддержка MyGub\n${deviceInfo(ctx)}\n\nОпишите проблему: ")
+                }
+                Divider()
+                NavRow("Предложить улучшение", "Идея, чего не хватает в MyGub") {
+                    openTelegram(ctx, "Предложение для MyGub (${appVersion(ctx)}): ")
+                }
+            }
+
             SectionTitle("Помощь")
             SettingsCard {
                 NavRow("Ввести капчу сайта", "Если сайт вуза перестал отдавать расписание") { vm.openCaptcha() }
@@ -178,13 +190,9 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
                     shareRaw(ctx, vm.rawFile())
                 }
             }
-            Spacer(Modifier.height(16.dp))
-            Text(
-                "MyGub 2.0 · есть лёгкая версия MyGub Lite",
-                style = MaterialTheme.typography.labelSmall,
-                color = cs.onSurfaceVariant,
-                modifier = Modifier.padding(start = 22.dp),
-            )
+
+            Spacer(Modifier.height(20.dp))
+            AboutCard(ctx)
         }
     }
 }
@@ -314,6 +322,113 @@ internal fun ColorDot(fill: Brush, selected: Boolean, label: String, onClick: ()
             color = if (selected) cs.onSurface else cs.onSurfaceVariant,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
         )
+    }
+}
+
+// ---------------------------------------------------------------- автор и поддержка
+
+const val AUTHOR_TG = "@Bomb0clat67"
+private const val AUTHOR_LINK = "https://t.me/Bomb0clat67"
+
+fun appVersion(ctx: Context): String = try {
+    "v" + (ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "?")
+} catch (e: Exception) {
+    "v?"
+}
+
+private fun deviceInfo(ctx: Context): String =
+    "MyGub ${appVersion(ctx)} · Android ${Build.VERSION.RELEASE} · ${Build.MANUFACTURER} ${Build.MODEL}"
+
+/** Открывает чат с автором в Telegram; шаблон сообщения кладётся в буфер обмена. */
+private fun openTelegram(ctx: Context, template: String?) {
+    if (template != null) {
+        runCatching {
+            val cm = ctx.getSystemService(android.content.ClipboardManager::class.java)
+            cm?.setPrimaryClip(android.content.ClipData.newPlainText("MyGub", template))
+            Toast.makeText(ctx, "Шаблон сообщения скопирован — вставьте его в чат", Toast.LENGTH_LONG).show()
+        }
+    }
+    try {
+        ctx.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(AUTHOR_LINK)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    } catch (e: Exception) {
+        Toast.makeText(ctx, "Не нашлось приложения для ссылки. Telegram: $AUTHOR_TG", Toast.LENGTH_LONG).show()
+    }
+}
+
+/** Карточка «О приложении»: автор, версия, права. */
+@Composable
+private fun AboutCard(ctx: Context) {
+    val cs = MaterialTheme.colorScheme
+    GlassCard(Modifier.fillMaxWidth()) {
+        Column(
+            Modifier.fillMaxWidth().padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(
+                Modifier
+                    .size(56.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Brush.linearGradient(listOf(cs.primary, cs.tertiary))),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(Modifier.size(30.dp).clip(RoundedCornerShape(8.dp)).background(Color.White), contentAlignment = Alignment.Center) {
+                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        repeat(2) { r ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                                repeat(3) { c ->
+                                    Box(
+                                        Modifier.size(5.dp).clip(RoundedCornerShape(1.5.dp))
+                                            .background(if (r == 1 && c == 2) cs.primary else Color(0x332B3445)),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            Text("MyGub", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(appVersion(ctx), style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant)
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "Создатель и разработчик",
+                style = MaterialTheme.typography.labelMedium,
+                color = cs.onSurfaceVariant,
+            )
+            Text(
+                AUTHOR_TG,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = cs.onPrimaryContainer,
+                modifier = Modifier
+                    .padding(top = 4.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(cs.primaryContainer)
+                    .clickable { openTelegram(ctx, null) }
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+            )
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "Сделано студентом для студентов Губкинского ❤️",
+                style = MaterialTheme.typography.bodySmall,
+                color = cs.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                "© 2026 $AUTHOR_TG. Все права защищены.\nКопирование, изменение и распространение приложения без согласия автора запрещены.",
+                style = MaterialTheme.typography.labelSmall,
+                color = cs.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+            Text(
+                "Неофициальное приложение, не связано с РГУ нефти и газа им. И. М. Губкина. Есть лёгкая версия MyGub Lite.",
+                style = MaterialTheme.typography.labelSmall,
+                color = cs.onSurfaceVariant.copy(alpha = 0.8f),
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+        }
     }
 }
 
