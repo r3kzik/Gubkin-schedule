@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "Raspisanie"
+rootProject.name = "MyGub"
 include(":app")

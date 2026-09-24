@@ -1,4 +1,4 @@
-name: Собрать APK (Lite)
+name: Сборка MyGub Lite
 
 on:
   push:
@@ -27,19 +27,19 @@ jobs:
           ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: Переименовать APK
-        run: cp app/build/outputs/apk/release/app-release.apk raspisanie-lite.apk
+        run: cp app/build/outputs/apk/release/app-release.apk mygub-lite.apk
 
       - name: Сохранить APK в сборке
         uses: actions/upload-artifact@v4
         with:
-          name: raspisanie-lite-apk
-          path: raspisanie-lite.apk
+          name: mygub-lite-apk
+          path: mygub-lite.apk
 
       - name: Опубликовать релиз (удобно скачивать с телефона)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: lite-${{ github.run_number }}
-          name: Расписание Lite 1.0.${{ github.run_number }}
-          body: Лёгкая версия без эффектов. Ставится рядом с основным приложением. Скачайте raspisanie-lite.apk ниже.
-          files: raspisanie-lite.apk
+          name: MyGub Lite 1.0.${{ github.run_number }}
+          body: "Лёгкая версия MyGub без эффектов и анимаций. Ставится рядом с основным приложением. Скачайте **mygub-lite.apk** ниже."
+          files: mygub-lite.apk
           make_latest: false
