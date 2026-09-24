@@ -1,7 +1,8 @@
-name: Собрать APK
+name: Собрать APK (Lite)
 
 on:
   push:
+    branches: [lite]
   workflow_dispatch:
 
 permissions:
@@ -26,19 +27,19 @@ jobs:
           ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: Переименовать APK
-        run: cp app/build/outputs/apk/release/app-release.apk raspisanie.apk
+        run: cp app/build/outputs/apk/release/app-release.apk raspisanie-lite.apk
 
       - name: Сохранить APK в сборке
         uses: actions/upload-artifact@v4
         with:
-          name: raspisanie-apk
-          path: raspisanie.apk
+          name: raspisanie-lite-apk
+          path: raspisanie-lite.apk
 
       - name: Опубликовать релиз (удобно скачивать с телефона)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: build-${{ github.run_number }}
-          name: Расписание 1.0.${{ github.run_number }}
-          body: Скачайте raspisanie.apk ниже и установите на телефон.
-          files: raspisanie.apk
-          make_latest: true
+          tag_name: lite-${{ github.run_number }}
+          name: Расписание Lite 1.0.${{ github.run_number }}
+          body: Лёгкая версия без эффектов. Ставится рядом с основным приложением. Скачайте raspisanie-lite.apk ниже.
+          files: raspisanie-lite.apk
+          make_latest: false
