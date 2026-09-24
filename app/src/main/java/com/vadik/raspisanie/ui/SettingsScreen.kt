@@ -171,6 +171,9 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
                 ) { v -> vm.updatePrefs { it.copy(widgetTheme = v) } }
             }
 
+            // ---------------- обновления
+            UpdatesSection(state, vm)
+
             // ---------------- помощь
             SectionTitle("Поддержка")
             SettingsCard {

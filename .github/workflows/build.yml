@@ -1,8 +1,8 @@
-name: Сборка MyGub
+name: Сборка MyGub Beta
 
 on:
   push:
-    branches: [main]
+    branches: [beta]
   workflow_dispatch:
 
 permissions:
@@ -21,32 +21,65 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      - name: Ключ подписи из секретов
+        id: key
+        env:
+          MYGUB_KEYSTORE: ${{ secrets.MYGUB_KEYSTORE }}
+          MYGUB_KEYSTORE_PASSWORD: ${{ secrets.MYGUB_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$MYGUB_KEYSTORE" ]; then
+            echo "::warning::Нет секрета MYGUB_KEYSTORE — код проверится, но APK не будет опубликован"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          printf '%s' "$MYGUB_KEYSTORE" | tr -d ' \r\n' | base64 -d > "$RUNNER_TEMP/mygub.keystore"
+          if ! keytool -list -keystore "$RUNNER_TEMP/mygub.keystore" -storepass "$MYGUB_KEYSTORE_PASSWORD" -alias mygub > /dev/null 2>&1; then
+            echo "::error::Ключ не открылся — проверьте секреты MYGUB_KEYSTORE и MYGUB_KEYSTORE_PASSWORD"
+            exit 1
+          fi
+          echo "MYGUB_KEYSTORE_FILE=$RUNNER_TEMP/mygub.keystore" >> "$GITHUB_ENV"
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+
       - name: Сборка
+        env:
+          MYGUB_KEYSTORE_PASSWORD: ${{ secrets.MYGUB_KEYSTORE_PASSWORD }}
         run: |
           chmod +x gradlew
           set -o pipefail
           ./gradlew assembleRelease --no-daemon 2>&1 | tee build.log
+          if [ -n "$MYGUB_KEYSTORE_FILE" ]; then rm -f "$MYGUB_KEYSTORE_FILE"; fi
+
       - name: Показать ошибки сборки
         if: failure()
         run: |
-          grep -E "^e: |error:|ERROR:|What went wrong" -A2 build.log | head -60 | while IFS= read -r line; do
+          grep -E "^e: |error:|ERROR:|What went wrong|Missing class|R8" -A2 build.log | head -60 | while IFS= read -r line; do
             echo "::error::$line"
           done
 
       - name: Переименовать APK
-        run: cp app/build/outputs/apk/release/app-release.apk mygub.apk
+        if: steps.key.outputs.ok == 'true'
+        run: cp app/build/outputs/apk/release/app-release.apk mygub-beta.apk
 
       - name: Сохранить APK в сборке
+        if: steps.key.outputs.ok == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: mygub-apk
-          path: mygub.apk
+          name: mygub-beta-apk
+          path: mygub-beta.apk
 
       - name: Опубликовать релиз (удобно скачивать с телефона)
+        if: steps.key.outputs.ok == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: build-${{ github.run_number }}
-          name: MyGub 2.1.${{ github.run_number }}
-          body: "Скачайте **mygub.apk** ниже (удобнее прямо с телефона) и установите. Обновление ставится поверх предыдущей версии, настройки и ДЗ сохраняются."
-          files: mygub.apk
-          make_latest: true
+          tag_name: beta-${{ github.run_number }}
+          name: MyGub Beta 2.2.${{ github.run_number }}
+          body: "🧪 Тестовая версия MyGub с новыми функциями. Ставится РЯДОМ с основным приложением (отдельная иконка MyGub Beta). Может содержать ошибки. Скачайте **mygub-beta.apk** ниже. Дальше приложение обновляется само: Настройки → Обновления."
+          files: mygub-beta.apk
+          prerelease: true
+          make_latest: false
+
+      - name: Нет ключа — релиз не опубликован
+        if: steps.key.outputs.ok != 'true'
+        run: |
+          echo "::error::Код собрался, но секрет MYGUB_KEYSTORE не задан — APK не опубликован"
+          exit 1
