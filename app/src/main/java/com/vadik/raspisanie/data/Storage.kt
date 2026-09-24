@@ -2,6 +2,7 @@ package com.vadik.raspisanie.data
 
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -52,6 +53,8 @@ class Storage(private val dir: File) {
             changeNotify = o["changeNotify"]?.let { it.truthy() } ?: d.changeNotify,
             theme = o["theme"].str() ?: d.theme,
             dynamicColor = o["dynamic"]?.let { it.truthy() } ?: d.dynamicColor,
+            widgetOpacity = o["widgetOpacity"].int()?.coerceIn(0, 100) ?: d.widgetOpacity,
+            widgetTheme = o["widgetTheme"].str() ?: d.widgetTheme,
         )
     } catch (e: Exception) {
         Prefs()
@@ -66,8 +69,48 @@ class Storage(private val dir: File) {
             put("changeNotify", p.changeNotify)
             put("theme", p.theme)
             put("dynamic", p.dynamicColor)
+            put("widgetOpacity", p.widgetOpacity)
+            put("widgetTheme", p.widgetTheme)
         }
         writeAtomic(prefsFile, o.toString())
+    }
+
+    private val historyFile get() = File(dir, "history.json")
+
+    /** Журнал изменений, замеченных приложением (последние ~2 месяца). */
+    fun loadHistory(): List<Change> = try {
+        Json.parseToJsonElement(historyFile.readText()).arr().orEmpty().mapNotNull { e ->
+            val o = e.obj() ?: return@mapNotNull null
+            Change(
+                date = LocalDate.parse(o["date"].str() ?: return@mapNotNull null),
+                start = o["start"].str().orEmpty(),
+                subject = o["subject"].str().orEmpty(),
+                text = o["text"].str().orEmpty(),
+                line = o["line"].str().orEmpty(),
+                noticedAt = o["at"].str()?.toLongOrNull() ?: 0L,
+            )
+        }
+    } catch (e: Exception) {
+        emptyList()
+    }
+
+    fun appendHistory(items: List<Change>) {
+        if (items.isEmpty()) return
+        val border = LocalDate.now().minusDays(60)
+        val all = (loadHistory() + items).filter { !it.date.isBefore(border) }.takeLast(500)
+        val arr = buildJsonArray {
+            all.forEach { c ->
+                add(buildJsonObject {
+                    put("date", c.date.toString())
+                    put("start", c.start)
+                    put("subject", c.subject)
+                    put("text", c.text)
+                    put("line", c.line)
+                    put("at", c.noticedAt)
+                })
+            }
+        }
+        writeAtomic(historyFile, arr.toString())
     }
 
     /** Последний «сырой» ответ сайта — для диагностики (например, если подгруппы не распознаются). */
@@ -137,6 +180,11 @@ class Storage(private val dir: File) {
                         put("moved", l.moved)
                         put("changed", l.changed)
                         l.subgroup?.let { put("sub", it) }
+                        l.teacherFull?.let { put("tf", it) }
+                        if (l.changeLines.isNotEmpty()) {
+                            put("chg", buildJsonArray { l.changeLines.forEach { add(JsonPrimitive(it)) } })
+                        }
+                        l.raw?.let { put("raw", it) }
                     })
                 }
             })
@@ -166,6 +214,9 @@ class Storage(private val dir: File) {
                         moved = x["moved"].truthy(),
                         changed = x["changed"].truthy(),
                         subgroup = x["sub"].int(),
+                        teacherFull = x["tf"].str(),
+                        changeLines = x["chg"].arr().orEmpty().mapNotNull { it.str() },
+                        raw = x["raw"].str(),
                     )
                 },
                 fetchedAt = o["fetchedAt"].str()?.toLongOrNull() ?: 0L,

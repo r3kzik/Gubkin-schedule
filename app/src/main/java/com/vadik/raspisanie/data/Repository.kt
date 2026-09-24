@@ -25,6 +25,10 @@ class Repository(
     fun savePrefs(p: Prefs) = storage.savePrefs(p)
     fun rawFile() = storage.rawFile()
 
+    /** Изменения этой пары, замеченные приложением (новые сверху). */
+    fun historyFor(date: LocalDate, subject: String): List<Change> =
+        storage.loadHistory().filter { it.date == date && it.subject == subject }.sortedByDescending { it.noticedAt }
+
     @Synchronized
     fun refreshWeek(settings: Settings, date: LocalDate, today: LocalDate = LocalDate.now()): RefreshResult {
         val monday = mondayOf(date)
@@ -38,9 +42,10 @@ class Repository(
             throw SiteException("Сайт вернул пустое расписание — показано сохранённое")
         }
         val prefs = storage.loadPrefs()
-        val changes = ScheduleDiff.describe(old, fresh, today) { prefs.concernsMe(it) }
+        val changes = ScheduleDiff.changes(old, fresh, today, { prefs.concernsMe(it) }, clock())
         storage.saveWeek(fresh)
-        return RefreshResult(fresh, changes)
+        storage.appendHistory(changes)
+        return RefreshResult(fresh, changes.map { it.line })
     }
 
     fun faculties(): List<Faculty> = ScheduleParser.parseFaculties(source.facultiesJson())

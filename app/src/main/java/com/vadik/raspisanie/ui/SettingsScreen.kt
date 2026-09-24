@@ -26,15 +26,21 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import java.io.File
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -123,7 +129,31 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
                     checked = prefs.dynamicColor,
                 ) { v -> vm.updatePrefs { it.copy(dynamicColor = v) } }
             }
-            Hint("Виджет: долгое нажатие на рабочем столе → Виджеты → «Расписание».")
+
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
+            // ---------------- виджет
+            Section("Виджет")
+            Hint("Добавить: долгое нажатие на рабочем столе → Виджеты → «Расписание».")
+            var opacity by remember(prefs.widgetOpacity) { mutableFloatStateOf(prefs.widgetOpacity.toFloat()) }
+            Label("Непрозрачность фона: ${opacity.roundToInt()} %")
+            Slider(
+                value = opacity,
+                onValueChange = { opacity = it },
+                onValueChangeFinished = {
+                    val v = opacity.roundToInt()
+                    vm.updatePrefs { it.copy(widgetOpacity = v) }
+                },
+                valueRange = 0f..100f,
+                steps = 19,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+            Hint("100 % — сплошной фон, 0 % — полностью прозрачный.")
+            Label("Тема виджета")
+            Choices(
+                options = listOf("system" to "Как в системе", "light" to "Светлая", "dark" to "Тёмная"),
+                selected = prefs.widgetTheme,
+            ) { v -> vm.updatePrefs { it.copy(widgetTheme = v) } }
 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
 

@@ -8,7 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.view.View
 import android.widget.RemoteViews
-import androidx.core.content.ContextCompat
+import android.content.res.Configuration
 import com.vadik.raspisanie.App
 import com.vadik.raspisanie.R
 import com.vadik.raspisanie.data.Upcoming
@@ -53,11 +53,18 @@ class ScheduleWidget : AppWidgetProvider() {
 
             val settings = repo.settings()
             if (settings == null) {
+                val c0 = palette(ctx, "system")
+                applyBackground(views, c0.bg, 100)
                 views.setTextViewText(R.id.widget_title, "Расписание")
                 showEmpty(views, "Откройте приложение и выберите группу")
                 return views
             }
             val prefs = repo.prefs()
+            val c = palette(ctx, prefs.widgetTheme)
+            applyBackground(views, c.bg, prefs.widgetOpacity)
+            views.setTextColor(R.id.widget_title, c.text)
+            views.setTextColor(R.id.widget_group, c.muted)
+            views.setTextColor(R.id.widget_empty, c.muted)
             val now = LocalDateTime.now()
             val day = Upcoming.widgetDay({ d -> repo.cachedWeek(settings.groupId, d) }, prefs, now)
             views.setTextViewText(R.id.widget_title, title(day.date, now.toLocalDate()))
@@ -69,9 +76,9 @@ class ScheduleWidget : AppWidgetProvider() {
                 day.lessons.isEmpty() -> showEmpty(views, "Пар нет 🎉")
                 else -> {
                     views.setViewVisibility(R.id.widget_empty, View.GONE)
-                    val accent = ContextCompat.getColor(ctx, R.color.widget_accent)
-                    val normal = ContextCompat.getColor(ctx, R.color.widget_text)
-                    val muted = ContextCompat.getColor(ctx, R.color.widget_muted)
+                    val accent = c.accent
+                    val normal = c.text
+                    val muted = c.muted
                     day.lessons.take(MAX_ROWS).forEachIndexed { i, l ->
                         val row = RemoteViews(ctx.packageName, R.layout.widget_row)
                         val inactive = l.cancelled || l.moved || prefs.isOtherSubgroup(l)
@@ -96,6 +103,7 @@ class ScheduleWidget : AppWidgetProvider() {
                         }
                         row.setTextColor(R.id.row_time, if (i == day.currentIndex) accent else color)
                         row.setTextColor(R.id.row_subject, color)
+                        row.setTextColor(R.id.row_details, muted)
                         views.addView(R.id.widget_list, row)
                     }
                     if (day.lessons.size > MAX_ROWS) {
@@ -103,11 +111,36 @@ class ScheduleWidget : AppWidgetProvider() {
                         more.setTextViewText(R.id.row_time, "")
                         more.setTextViewText(R.id.row_subject, "…ещё ${day.lessons.size - MAX_ROWS}")
                         more.setTextViewText(R.id.row_details, "")
+                        more.setTextColor(R.id.row_subject, muted)
                         views.addView(R.id.widget_list, more)
                     }
                 }
             }
             return views
+        }
+
+        private class Palette(val bg: Int, val text: Int, val muted: Int, val accent: Int)
+
+        /** Цвета виджета: своя тема (светлая/тёмная) или как в системе. */
+        private fun palette(ctx: Context, theme: String): Palette {
+            val systemDark = (ctx.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+                Configuration.UI_MODE_NIGHT_YES
+            val dark = when (theme) {
+                "light" -> false
+                "dark" -> true
+                else -> systemDark
+            }
+            return if (dark) {
+                Palette(0xFF1F2226.toInt(), 0xFFE3E2E6.toInt(), 0xFF9AA0A8.toInt(), 0xFFA6C8FF.toInt())
+            } else {
+                Palette(0xFFFFFFFF.toInt(), 0xFF1A1C1E.toInt(), 0xFF6B7280.toInt(), 0xFF1F5FAF.toInt())
+            }
+        }
+
+        /** Перекрашиваем белую фигуру фона и задаём прозрачность (0–100 %). */
+        private fun applyBackground(views: RemoteViews, color: Int, opacityPercent: Int) {
+            views.setInt(R.id.widget_bg, "setColorFilter", color)
+            views.setInt(R.id.widget_bg, "setImageAlpha", (opacityPercent.coerceIn(0, 100) * 255) / 100)
         }
 
         private fun showEmpty(views: RemoteViews, text: String) {

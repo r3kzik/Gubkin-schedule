@@ -87,6 +87,11 @@ fun AppRoot(state: UiState, vm: MainViewModel) {
             PickerScreen(state.picker ?: PickerState(), canClose = settings != null, vm = vm)
         }
 
+        state.detail != null -> {
+            BackHandler { vm.closeLesson() }
+            LessonScreen(state.detail, state.prefs) { vm.closeLesson() }
+        }
+
         state.showSettings -> {
             BackHandler { vm.closeSettings() }
             SettingsScreen(state, vm)
@@ -201,7 +206,7 @@ fun ScheduleScreen(state: UiState, vm: MainViewModel) {
                 state = pagerState,
                 modifier = Modifier.weight(1f).fillMaxWidth(),
             ) { page ->
-                DayPage(days[page], today, state.week, state.refreshing, state.prefs)
+                DayPage(days[page], today, state.week, state.refreshing, state.prefs) { d, l -> vm.openLesson(d, l) }
             }
 
             val fetched = state.week?.fetchedAt
@@ -331,7 +336,14 @@ private fun Banner(
 }
 
 @Composable
-private fun DayPage(date: LocalDate, today: LocalDate, week: WeekSchedule?, refreshing: Boolean, prefs: Prefs) {
+private fun DayPage(
+    date: LocalDate,
+    today: LocalDate,
+    week: WeekSchedule?,
+    refreshing: Boolean,
+    prefs: Prefs,
+    onOpen: (LocalDate, Lesson) -> Unit,
+) {
     val title = DAY_FULL[date.dayOfWeek.value - 1] + ", " + date.format(DM) +
         if (date == today) " · сегодня" else if (date == today.plusDays(1)) " · завтра" else ""
     if (week == null) {
@@ -364,7 +376,7 @@ private fun DayPage(date: LocalDate, today: LocalDate, week: WeekSchedule?, refr
             val other = prefs.isOtherSubgroup(l)
             val isNow = date == today && !l.cancelled && !other &&
                 nowMinutes >= timeKey(l.start) && nowMinutes < timeKey(l.end.ifBlank { l.start })
-            LessonCard(l, isNow, other)
+            LessonCard(l, isNow, other) { onOpen(date, l) }
         }
     }
 }
@@ -391,8 +403,9 @@ private fun CenterMessage(title: String, text: String, showProgress: Boolean) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun LessonCard(l: Lesson, isNow: Boolean, otherSubgroup: Boolean) {
+private fun LessonCard(l: Lesson, isNow: Boolean, otherSubgroup: Boolean, onClick: () -> Unit) {
     val inactive = l.cancelled || l.moved
     val faded = inactive || otherSubgroup
     val colors = when {
@@ -406,7 +419,7 @@ private fun LessonCard(l: Lesson, isNow: Boolean, otherSubgroup: Boolean) {
         )
     }
     val alpha = if (faded) 0.5f else 1f
-    Card(Modifier.fillMaxWidth(), colors = colors) {
+    Card(onClick = onClick, modifier = Modifier.fillMaxWidth(), colors = colors) {
         Row(Modifier.padding(14.dp)) {
             Column(Modifier.width(58.dp)) {
                 Text(
@@ -463,6 +476,23 @@ private fun LessonCard(l: Lesson, isNow: Boolean, otherSubgroup: Boolean) {
                         color = MaterialTheme.colorScheme.error,
                     )
                 }
+                // первая строка «что изменилось» прямо в карточке, остальное — по нажатию
+                l.changeLines.firstOrNull()?.let {
+                    Text(
+                        it + if (l.changeLines.size > 1) " (ещё ${l.changeLines.size - 1})" else "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (l.changed || l.changeLines.isNotEmpty()) {
+                    Text(
+                        "Нажмите, чтобы посмотреть подробности",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = contentColor(0.7f),
+                    )
+                }
             }
         }
     }
@@ -470,7 +500,7 @@ private fun LessonCard(l: Lesson, isNow: Boolean, otherSubgroup: Boolean) {
 
 /** Метка «1 подгр.»: своя подгруппа — цветная, чужая — серая. */
 @Composable
-private fun SubgroupBadge(n: Int, other: Boolean) {
+fun SubgroupBadge(n: Int, other: Boolean) {
     val bg = if (other) MaterialTheme.colorScheme.outlineVariant else MaterialTheme.colorScheme.secondaryContainer
     val fg = if (other) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSecondaryContainer
     Text(

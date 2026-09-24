@@ -6,7 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.vadik.raspisanie.App
 import com.vadik.raspisanie.data.CaptchaRequiredException
 import com.vadik.raspisanie.data.Faculty
+import com.vadik.raspisanie.data.Change
 import com.vadik.raspisanie.data.Group
+import com.vadik.raspisanie.data.Lesson
 import com.vadik.raspisanie.data.Prefs
 import com.vadik.raspisanie.data.Repository
 import com.vadik.raspisanie.data.Settings
@@ -40,6 +42,13 @@ data class CaptchaState(
     val error: String? = null,
 )
 
+/** Открытая карточка пары. */
+data class LessonDetail(
+    val date: LocalDate,
+    val lesson: Lesson,
+    val history: List<Change> = emptyList(),
+)
+
 data class UiState(
     val starting: Boolean = true,
     val settings: Settings? = null,
@@ -52,6 +61,7 @@ data class UiState(
     val captcha: CaptchaState? = null,
     val prefs: Prefs = Prefs(),
     val showSettings: Boolean = false,
+    val detail: LessonDetail? = null,
 ) {
     val monday: LocalDate get() = Repository.mondayOf(selectedDate)
 }
@@ -274,6 +284,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun rawFile() = repo.rawFile()
+
+    // ------------------------------------------------------------ карточка пары
+
+    fun openLesson(date: LocalDate, lesson: Lesson) {
+        _state.update { it.copy(detail = LessonDetail(date, lesson)) }
+        viewModelScope.launch {
+            val h = withContext(Dispatchers.IO) { repo.historyFor(date, lesson.subject) }
+            _state.update { st ->
+                if (st.detail?.lesson == lesson) st.copy(detail = st.detail.copy(history = h)) else st
+            }
+        }
+    }
+
+    fun closeLesson() = _state.update { it.copy(detail = null) }
 
     // ------------------------------------------------------------ капча
 

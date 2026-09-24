@@ -27,6 +27,7 @@ import java.time.LocalDate
 object ScheduleParser {
 
     private val json = Json { isLenient = true }
+    private val pretty = Json { prettyPrint = true }
 
     fun parseRoot(text: String): JsonObject {
         val el = try {
@@ -107,6 +108,10 @@ object ScheduleParser {
                     moved = lo["isMoved"].truthy(),
                     changed = lo["changes"].truthy(),
                     subgroup = detectSubgroup(lo, mine, myCode),
+                    teacherFull = lo["teachers"].arr().orEmpty().mapNotNull { fullName(it) }
+                        .distinct().joinToString(", ").ifBlank { null },
+                    changeLines = changeLines(lo),
+                    raw = runCatching { pretty.encodeToString(JsonElement.serializer(), lo) }.getOrNull(),
                 )
             }
         }
@@ -194,6 +199,112 @@ object ScheduleParser {
         }
         val withoutGroups = JsonObject(lesson.filterKeys { it != "groups" })
         return scanText(withoutGroups)
+    }
+
+    // ---- изменения в паре
+    //
+    // Сайт отмечает изменённые пары полем "changes"; его точный формат неизвестен,
+    // поэтому разбираем любые варианты: строку, объект {поле: значение}, {old/new},
+    // список таких объектов. Плюс поля пары со словами old/original/prev/replace.
+
+    private val LABELS = mapOf(
+        "teacher" to "Преподаватель", "teachers" to "Преподаватель", "lecturer" to "Преподаватель",
+        "room" to "Аудитория", "rooms" to "Аудитория", "auditory" to "Аудитория", "auditorium" to "Аудитория",
+        "time" to "Время", "timechunks" to "Время", "start" to "Начало", "end" to "Конец",
+        "date" to "Дата", "day" to "День", "weekdaynumber" to "День недели",
+        "course" to "Предмет", "discipline" to "Предмет", "subject" to "Предмет",
+        "type" to "Тип занятия", "comment" to "Комментарий", "reason" to "Причина",
+        "note" to "Примечание", "description" to "Описание", "iscanceled" to "Отмена",
+        "ismoved" to "Перенос", "groups" to "Группы", "building" to "Корпус",
+    )
+    private val OLD_KEYS = listOf("old", "from", "before", "prev", "previous", "was", "original")
+    private val NEW_KEYS = listOf("new", "to", "after", "next", "now", "current", "replacement")
+    private val EXTRA_KEY = Regex("(?i)(old|original|prev|replac|substit|zamen|was)")
+
+    private fun label(key: String): String {
+        val k = key.lowercase()
+        LABELS[k]?.let { return it }
+        // oldTeachers / originalRoom / replacementTeacher -> по «корню»
+        LABELS.entries.firstOrNull { k.endsWith(it.key) || k.startsWith(it.key) }?.let {
+            val prefix = when {
+                k.startsWith("old") || k.startsWith("prev") || k.startsWith("original") || k.startsWith("was") -> " (было)"
+                k.startsWith("new") || k.startsWith("replac") || k.startsWith("substit") -> " (замена)"
+                else -> ""
+            }
+            return it.value + prefix
+        }
+        return key
+    }
+
+    /** Любое значение JSON -> короткий текст. */
+    fun valueText(el: JsonElement?): String? = when (el) {
+        null, JsonNull -> null
+        is JsonPrimitive -> when (el.booleanOrNull) {
+            true -> "да"
+            false -> "нет"
+            null -> el.content.takeIf { it.isNotBlank() }
+        }
+        is JsonArray -> el.mapNotNull { valueText(it) }.distinct().joinToString(", ").ifBlank { null }
+        is JsonObject -> when {
+            el["lastName"] != null -> fullName(el)
+            el["number"] != null -> el["number"].str()
+            el["name"] != null -> valueText(el["name"])
+            el["title"] != null -> valueText(el["title"])
+            el["code"] != null -> valueText(el["code"])
+            else -> el.entries.mapNotNull { (k, v) -> valueText(v)?.let { "${label(k)}: $it" } }
+                .joinToString("; ").ifBlank { null }
+        }
+    }
+
+    private fun renderChangeObject(o: JsonObject, prefix: String?): List<String> {
+        val oldV = OLD_KEYS.firstNotNullOfOrNull { k -> o.entries.firstOrNull { it.key.equals(k, true) }?.value }
+        val newV = NEW_KEYS.firstNotNullOfOrNull { k -> o.entries.firstOrNull { it.key.equals(k, true) }?.value }
+        if (oldV != null || newV != null) {
+            val name = prefix
+                ?: (o["field"] ?: o["name"] ?: o["type"] ?: o["property"] ?: o["key"]).str()?.let { label(it) }
+            val text = "${valueText(oldV) ?: "—"} → ${valueText(newV) ?: "—"}"
+            return listOf(if (name != null) "$name: $text" else text)
+        }
+        return o.entries.flatMap { (k, v) ->
+            when (v) {
+                is JsonObject -> renderChangeObject(v, label(k))
+                // ложные флаги («isMoved: false») не показываем
+                is JsonPrimitive -> if (v.booleanOrNull == false) emptyList()
+                else listOfNotNull(valueText(v)?.let { "${label(k)}: $it" })
+                else -> listOfNotNull(valueText(v)?.let { "${label(k)}: $it" })
+            }
+        }
+    }
+
+    fun changeLines(lesson: JsonObject): List<String> {
+        val out = mutableListOf<String>()
+        when (val c = lesson["changes"]) {
+            null, JsonNull -> Unit
+            is JsonPrimitive -> if (c.isString && c.content.isNotBlank()) out += c.content
+            is JsonArray -> c.forEach { e ->
+                when (e) {
+                    is JsonObject -> out += renderChangeObject(e, null)
+                    else -> valueText(e)?.let { out += it }
+                }
+            }
+            is JsonObject -> out += renderChangeObject(c, null)
+        }
+        for ((k, v) in lesson) {
+            if (k == "changes" || !EXTRA_KEY.containsMatchIn(k)) continue
+            valueText(v)?.takeIf { it != "нет" }?.let { out += "${label(k)}: $it" }
+        }
+        return out.distinct()
+    }
+
+    /** Полное ФИО: "Иванов Иван Петрович". */
+    private fun fullName(el: JsonElement): String? {
+        val o = el.obj() ?: return el.str()?.takeIf { it.isNotBlank() }
+        val parts = listOf(
+            o["lastName"].str(), o["firstName"].str(),
+            o["middleName"].str() ?: o["patronymic"].str() ?: o["secondName"].str(),
+        ).mapNotNull { it?.trim()?.takeIf { s -> s.isNotEmpty() } }
+        if (parts.isEmpty()) return (o["fullName"].str() ?: o["name"].str() ?: o["fio"].str())?.trim()
+        return parts.joinToString(" ")
     }
 
     /** "Иванов Иван Петрович" -> "Иванов И. П." */

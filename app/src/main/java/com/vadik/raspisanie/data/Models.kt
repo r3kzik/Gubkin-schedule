@@ -17,6 +17,12 @@ data class Lesson(
     val changed: Boolean,
     /** Номер подгруппы (1, 2…), если пара только для части группы; null — для всей группы. */
     val subgroup: Int? = null,
+    /** Полные ФИО преподавателей. */
+    val teacherFull: String? = null,
+    /** Что изменилось — со слов сайта (поле changes и т. п.). */
+    val changeLines: List<String> = emptyList(),
+    /** Исходные данные пары с сайта (JSON) — для экрана подробностей. */
+    val raw: String? = null,
 )
 
 /** День недели из ответа сайта: дата в формате dd-MM-yyyy и номер дня. */
@@ -63,6 +69,10 @@ data class Prefs(
     /** system | light | dark */
     val theme: String = "system",
     val dynamicColor: Boolean = true,
+    /** Непрозрачность фона виджета, 0–100 %. */
+    val widgetOpacity: Int = 100,
+    /** Тема виджета: system | light | dark */
+    val widgetTheme: String = "system",
 ) {
     /** Пара другой подгруппы (не моей). */
     fun isOtherSubgroup(l: Lesson): Boolean =
