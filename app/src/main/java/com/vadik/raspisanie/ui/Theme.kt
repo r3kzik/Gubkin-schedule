@@ -76,24 +76,30 @@ private fun tone(h: Float, s: Float, l: Float): Color =
 
 /** Своя Material-схема из «семечка» цвета: оттенки подобраны вручную для светлой и тёмной темы. */
 fun schemeFromSeed(seed: Color, dark: Boolean): ColorScheme {
-    val (h, s0, _) = hsl(seed.toArgb()).let { Triple(it[0], it[1], it[2]) }
+    val (h, s0, l0) = hsl(seed.toArgb()).let { Triple(it[0], it[1], it[2]) }
     val s = s0.coerceAtLeast(0.12f)
+    // «Тёмные» цвета (тёмно-зелёный, бордо…) не осветляем до среднего тона — интерфейс остаётся глубоким
+    val deep = l0 < 0.33f
+    val lp = if (deep) l0.coerceIn(0.18f, 0.3f) + 0.02f else 0.47f   // основной (светлая тема)
+    val ls = if (deep) 0.30f else 0.42f                              // вторичные (светлая тема)
+    val dp = if (deep) 0.66f else 0.76f                              // основной (тёмная тема)
+    val tint = if (deep) 0.55f else 0.3f                             // насколько фон окрашен в цвет
     val h2 = h + 35f   // вторичный
     val h3 = h - 40f   // третичный
     return if (!dark) lightColorScheme(
-        primary = tone(h, s * 0.95f, 0.47f),
+        primary = tone(h, s * 0.95f, lp),
         onPrimary = Color.White,
         primaryContainer = tone(h, s * 0.9f, 0.88f),
         onPrimaryContainer = tone(h, s, 0.16f),
-        secondary = tone(h2, s * 0.55f, 0.42f),
+        secondary = tone(h2, s * 0.55f, ls),
         onSecondary = Color.White,
         secondaryContainer = tone(h2, s * 0.6f, 0.89f),
         onSecondaryContainer = tone(h2, s * 0.6f, 0.15f),
-        tertiary = tone(h3, s * 0.6f, 0.42f),
+        tertiary = tone(h3, s * 0.6f, ls),
         onTertiary = Color.White,
         tertiaryContainer = tone(h3, s * 0.65f, 0.89f),
         onTertiaryContainer = tone(h3, s * 0.6f, 0.15f),
-        background = tone(h, s * 0.35f, 0.965f),
+        background = tone(h, s * (tint + 0.05f), if (deep) 0.95f else 0.965f),
         onBackground = tone(h, 0.15f, 0.11f),
         surface = tone(h, s * 0.3f, 0.975f),
         onSurface = tone(h, 0.15f, 0.11f),
@@ -108,9 +114,9 @@ fun schemeFromSeed(seed: Color, dark: Boolean): ColorScheme {
         outlineVariant = tone(h, 0.15f, 0.82f),
         error = Color(0xFFD32F2F),
     ) else darkColorScheme(
-        primary = tone(h, s * 0.9f, 0.76f),
+        primary = tone(h, s * 0.9f, dp),
         onPrimary = tone(h, s, 0.14f),
-        primaryContainer = tone(h, s * 0.7f, 0.30f),
+        primaryContainer = tone(h, s * 0.7f, if (deep) 0.24f else 0.30f),
         onPrimaryContainer = tone(h, s * 0.9f, 0.90f),
         secondary = tone(h2, s * 0.5f, 0.76f),
         onSecondary = tone(h2, s * 0.6f, 0.14f),
@@ -120,9 +126,9 @@ fun schemeFromSeed(seed: Color, dark: Boolean): ColorScheme {
         onTertiary = tone(h3, s * 0.6f, 0.14f),
         tertiaryContainer = tone(h3, s * 0.4f, 0.28f),
         onTertiaryContainer = tone(h3, s * 0.5f, 0.90f),
-        background = tone(h, s * 0.3f, 0.065f),
+        background = tone(h, s * tint, if (deep) 0.055f else 0.065f),
         onBackground = tone(h, 0.1f, 0.92f),
-        surface = tone(h, s * 0.25f, 0.08f),
+        surface = tone(h, s * (tint - 0.05f), 0.08f),
         onSurface = tone(h, 0.1f, 0.92f),
         surfaceVariant = tone(h, s * 0.2f, 0.19f),
         onSurfaceVariant = tone(h, 0.1f, 0.74f),

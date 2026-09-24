@@ -120,6 +120,22 @@ fun ThemeEditorScreen(state: UiState, vm: MainViewModel) {
                     }
                 }
                 Divider()
+                Label("Тёмные")
+                FlowRow(
+                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Accents.dark.forEach { a ->
+                        val c = Color(a.seed)
+                        ColorDot(
+                            Brush.linearGradient(listOf(c, c.copy(alpha = 0.85f))),
+                            selected = prefs.accent == a.id,
+                            label = a.title,
+                        ) { vm.updatePrefs { it.copy(accent = a.id) } }
+                    }
+                }
+                Divider()
                 Label("Pantone · цвета года")
                 FlowRow(
                     Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),

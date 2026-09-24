@@ -37,7 +37,7 @@ object IconSwitcher {
                     PackageManager.DONT_KILL_APP,
                 )
             }
-            Accents.presets.map { it.id }.filter { it != target && enabled(it) }.forEach { id ->
+            Accents.withIcons.map { it.id }.filter { it != target && enabled(it) }.forEach { id ->
                 pm.setComponentEnabledSetting(
                     ComponentName(ctx.packageName, cls(id)),
                     PackageManager.COMPONENT_ENABLED_STATE_DISABLED,

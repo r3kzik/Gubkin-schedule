@@ -17,6 +17,24 @@ object Accents {
         Accent("graphite", "Графит", 0xFF7D8799),
     )
 
+    /** Тёмные насыщенные цвета: интерфейс остаётся глубоким и в светлой теме. */
+    val dark = listOf(
+        Accent("forest", "Тёмно-зелёный", 0xFF1F5C3B),
+        Accent("bottle", "Бутылочный", 0xFF0E4B3A),
+        Accent("pine", "Хвойный", 0xFF2E4A36),
+        Accent("olive", "Оливковый", 0xFF4B5320),
+        Accent("petrol", "Петроль", 0xFF0F4C5C),
+        Accent("navy", "Тёмно-синий", 0xFF1C2E5A),
+        Accent("indigo", "Индиго", 0xFF2E2A6B),
+        Accent("plum", "Баклажан", 0xFF4A2458),
+        Accent("wine", "Бордо", 0xFF6B1E34),
+        Accent("cocoa", "Шоколад", 0xFF4E3024),
+        Accent("slate", "Сланец", 0xFF2F343C),
+    )
+
+    /** Цвета, для которых есть свой вариант иконки приложения. */
+    val withIcons get() = presets + dark
+
     /** «Цвет года» Pantone — подпись: год и название. */
     val pantone = listOf(
         Accent("p2025", "2025 · Mocha Mousse", 0xFFA47864),
@@ -34,13 +52,13 @@ object Accents {
         Accent("p2013", "2013 · Emerald", 0xFF009473),
     )
 
-    private val all = presets + pantone
+    private val all = presets + dark + pantone
 
     fun seedOf(id: String): Long = all.firstOrNull { it.id == id }?.seed ?: presets[0].seed
 
     /** Для иконки: ближайший по оттенку базовый цвет (иконки есть только для базовых). */
     fun nearestPresetId(id: String): String {
-        if (presets.any { it.id == id }) return id
+        if (withIcons.any { it.id == id }) return id
         val seed = all.firstOrNull { it.id == id }?.seed ?: return "blue"
         fun hsv(c: Long): FloatArray {
             val r = ((c shr 16) and 0xFF) / 255f
