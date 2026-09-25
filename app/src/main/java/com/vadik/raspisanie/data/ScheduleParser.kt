@@ -167,13 +167,16 @@ object ScheduleParser {
                 )
             }
         }
-        lessons.sortWith(compareBy({ it.weekDay }, { timeKey(it.start) }))
+        // одна и та же пара может прийти несколько раз (поток из нескольких групп) — оставляем одну
+        val unique = lessons
+            .distinctBy { listOf(it.weekDay, it.start, it.end, it.subject, it.kind, it.room, it.teacher, it.subgroup, it.cancelled, it.moved) }
+            .sortedWith(compareBy({ it.weekDay }, { timeKey(it.start) }))
         return WeekSchedule(
             groupId = groupId,
             monday = monday,
             weekType = weekRussia?.get("type").str(),
             days = days,
-            lessons = lessons,
+            lessons = unique,
             fetchedAt = now,
         )
     }

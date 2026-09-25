@@ -169,7 +169,7 @@ object TeacherParser {
         }
         // сайт прислал пары, но ни одной — этого преподавателя: значит, запрос понят не так
         if (total > 0 && out.isEmpty()) throw WrongEndpointException()
-        return TeacherWeek(teacher, monday, out.sortedWith(compareBy({ it.date }, { timeKey(it.start) })), true, now)
+        return TeacherWeek(teacher, monday, merge(out), true, now)
     }
 
     private fun lessonOf(
@@ -181,7 +181,7 @@ object TeacherParser {
         val roomChanged = newRooms.isNotEmpty() && newRooms != baseRooms
         val sub = lo["subgroup"].int()?.takeIf { it > 0 }
         val groups = lo["groups"].arr().orEmpty().mapNotNull { it.obj()?.get("code").str()?.trim() }
-            .distinct().joinToString(", ") + (sub?.let { " · $it подгр." } ?: "")
+            .distinct().joinToString(", ") { code -> if (sub != null) "$code ($sub подгр.)" else code }
         return TeacherLesson(
             date = date,
             start = start,
@@ -217,8 +217,25 @@ object TeacherParser {
                     .let { if (it.groups.isBlank()) it.copy(groups = groupCode) else it }
             }
         }
-        return TeacherWeek(teacher, monday, out.sortedWith(compareBy({ it.date }, { timeKey(it.start) })), false, now)
+        return TeacherWeek(teacher, monday, merge(out), false, now)
     }
+
+    /**
+     * Поток: у преподавателя одна и та же пара (время, предмет, аудитория) приходит с сайта
+     * отдельно для каждой группы — объединяем в одну карточку со списком групп.
+     */
+    fun merge(list: List<TeacherLesson>): List<TeacherLesson> =
+        list.groupBy { listOf(it.date, it.start, it.end, it.subject, it.kind, it.room, it.cancelled, it.moved, it.replaced) }
+            .values.map { same ->
+                if (same.size == 1) same[0]
+                else same[0].copy(
+                    groups = same.flatMap { it.groups.split(", ") }.map { it.trim() }.filter { it.isNotEmpty() }
+                        .distinct().sorted().joinToString(", "),
+                    roomChanged = same.any { it.roomChanged },
+                    substitute = same.any { it.substitute },
+                )
+            }
+            .sortedWith(compareBy({ it.date }, { timeKey(it.start) }))
 
     private fun rooms(el: JsonElement?): String = el.arr().orEmpty().mapNotNull { r ->
         val ro = r.obj() ?: return@mapNotNull r.str()
