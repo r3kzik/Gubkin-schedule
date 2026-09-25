@@ -90,6 +90,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vadik.raspisanie.data.Edition
+import com.vadik.raspisanie.data.ScheduleText
 import com.vadik.raspisanie.data.Campus
 import com.vadik.raspisanie.data.Homework
 import com.vadik.raspisanie.data.Lesson
@@ -118,6 +119,7 @@ private enum class Screen(val depth: Int) { Loading(0), Onboarding(0), Main(0), 
 private val TABS = listOf(
     TabItem("Расписание", Icons.Filled.DateRange),
     TabItem("Предметы", Icons.Filled.Edit),
+    TabItem("Преподы", Icons.Filled.Person),
     TabItem("Карта", Icons.Filled.Place),
     TabItem("Настройки", Icons.Filled.Settings),
 )
@@ -201,9 +203,10 @@ private fun MainTabs(state: UiState, vm: MainViewModel) {
             label = "tab",
         ) { t ->
             when (t) {
-                1 -> SubjectsScreen(state, vm)
-                2 -> MapScreen(state, vm)
-                3 -> SettingsScreen(state, vm)
+                MainViewModel.TAB_SUBJECTS -> SubjectsScreen(state, vm)
+                MainViewModel.TAB_TEACHERS -> TeachersScreen(state, vm)
+                MainViewModel.TAB_MAP -> MapScreen(state, vm)
+                MainViewModel.TAB_SETTINGS -> SettingsScreen(state, vm)
                 else -> ScheduleScreen(state, vm)
             }
         }
@@ -329,7 +332,7 @@ fun ScheduleScreen(state: UiState, vm: MainViewModel) {
             state = pagerState,
             modifier = Modifier.weight(1f).fillMaxWidth().fadeEdges(40f, 70f),
         ) { page ->
-            DayPage(days[page], today, state.week, state.refreshing, state.prefs, state.homework, updatedText(state.week?.fetchedAt), onWhere = { vm.showOnMap(it.room) }) { d, l -> vm.openLesson(d, l) }
+            DayPage(days[page], today, state.week, state.refreshing, state.prefs, state.homework, updatedText(state.week?.fetchedAt), onWhere = { vm.showOnMap(it.room) }, groupName = settings.groupName) { d, l -> vm.openLesson(d, l) }
         }
 
     }
@@ -481,8 +484,10 @@ private fun DayPage(
     homework: List<Homework>,
     updated: String,
     onWhere: (Lesson) -> Unit,
+    groupName: String? = null,
     onOpen: (LocalDate, Lesson) -> Unit,
 ) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     val title = DAY_FULL[date.dayOfWeek.value - 1] + ", " + date.format(DM) +
         if (date == today) " · сегодня" else if (date == today.plusDays(1)) " · завтра" else ""
     if (week == null) {
@@ -573,15 +578,21 @@ private fun DayPage(
                 },
             ) { onOpen(date, l) }
         }
-        // «Обновлено …» — в самом конце списка, уезжает вместе с парами
+        // «Обновлено …» и копирование — в самом конце списка, уезжают вместе с парами
         item {
-            Text(
-                updated,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-            )
+            Column(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                GlassPill("⧉ Скопировать текстом", selected = false) {
+                    copyText(ctx, ScheduleText.day(date, lessons, groupName))
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    updated,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
     }
 }

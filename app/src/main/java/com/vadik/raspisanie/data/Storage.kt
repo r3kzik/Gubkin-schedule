@@ -132,6 +132,58 @@ class Storage(private val dir: File) {
             .mapNotNull { runCatching { decodeWeek(it.readText()) }.getOrNull() }
             .sortedBy { it.monday }
 
+    // ------------------------------------------------------------ преподаватели
+
+    private val probeFile get() = File(dir, "api_probe.json")
+
+    /** Какие адреса API подошли: ключ -> номер варианта (-1 — ни один) и время проверки. */
+    fun loadProbe(): Map<String, Long> = try {
+        Json.parseToJsonElement(probeFile.readText()).obj().orEmpty()
+            .mapNotNull { (k, v) -> v.str()?.toLongOrNull()?.let { k to it } }.toMap()
+    } catch (e: Exception) {
+        emptyMap()
+    }
+
+    fun saveProbe(m: Map<String, Long>) {
+        writeAtomic(probeFile, buildJsonObject { m.forEach { (k, v) -> put(k, v) } }.toString())
+    }
+
+    private val teachersFile get() = File(dir, "teachers.json")
+
+    /** Сохранённый список преподавателей и время загрузки. */
+    fun loadTeachers(): Pair<List<Teacher>, Long>? = try {
+        val o = Json.parseToJsonElement(teachersFile.readText()).obj()!!
+        val list = o["list"].arr().orEmpty().mapNotNull { e ->
+            val t = e.obj() ?: return@mapNotNull null
+            Teacher(
+                id = t["id"].str() ?: return@mapNotNull null,
+                fullName = t["full"].str().orEmpty(),
+                shortName = t["short"].str().orEmpty(),
+                department = t["dep"].str(),
+                divisionId = t["div"].str(),
+            )
+        }
+        list to (o["at"].str()?.toLongOrNull() ?: 0L)
+    } catch (e: Exception) {
+        null
+    }
+
+    fun saveTeachers(list: List<Teacher>, at: Long) {
+        val o = buildJsonObject {
+            put("at", at)
+            put("list", buildJsonArray {
+                list.forEach { t ->
+                    add(buildJsonObject {
+                        put("id", t.id); put("full", t.fullName); put("short", t.shortName)
+                        t.department?.let { put("dep", it) }
+                        t.divisionId?.let { put("div", it) }
+                    })
+                }
+            })
+        }
+        writeAtomic(teachersFile, o.toString())
+    }
+
     private val historyFile get() = File(dir, "history.json")
 
     /** Журнал изменений, замеченных приложением (последние ~2 месяца). */

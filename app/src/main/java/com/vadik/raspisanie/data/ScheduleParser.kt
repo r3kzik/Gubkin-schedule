@@ -366,7 +366,7 @@ object ScheduleParser {
     }
 
     /** Полное ФИО: "Иванов Иван Петрович". */
-    private fun fullName(el: JsonElement): String? {
+    internal fun fullName(el: JsonElement): String? {
         val o = el.obj() ?: return el.str()?.takeIf { it.isNotBlank() }
         val parts = listOf(
             o["lastName"].str(), o["firstName"].str(),
@@ -377,7 +377,7 @@ object ScheduleParser {
     }
 
     /** "Иванов Иван Петрович" -> "Иванов И. П." */
-    private fun teacherName(el: JsonElement): String? {
+    internal fun teacherName(el: JsonElement): String? {
         val o = el.obj() ?: return el.str()?.takeIf { it.isNotBlank() }
         val last = o["lastName"].str()?.trim().orEmpty()
         val first = o["firstName"].str()?.trim().orEmpty()
