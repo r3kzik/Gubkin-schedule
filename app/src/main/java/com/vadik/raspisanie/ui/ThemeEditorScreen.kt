@@ -172,6 +172,9 @@ fun ThemeEditorScreen(state: UiState, vm: MainViewModel) {
             SectionTitle("Форма и стекло")
             SettingsCard {
                 PercentSlider("Скругление углов", prefs.cornerPercent) { v -> vm.updatePrefs { it.copy(cornerPercent = v) } }
+                Divider()
+                Label("Нижняя панель")
+                Pills(Tabs.SHAPES, prefs.tabBarShape) { v -> vm.updatePrefs { it.copy(tabBarShape = v) } }
                 AnimatedVisibility(
                     visible = glassy,
                     enter = fadeIn() + expandVertically(),

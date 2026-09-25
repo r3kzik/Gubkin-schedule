@@ -293,11 +293,22 @@ data class TabItem(val title: String, val icon: ImageVector)
  * Material — стандартная NavigationBar.
  */
 @Composable
-fun StyledTabBar(items: List<TabItem>, selected: Int, onSelect: (Int) -> Unit) {
+fun StyledTabBar(items: List<TabItem>, selected: Int, shape: String = "auto", onSelect: (Int) -> Unit) {
     val g = LocalGlass.current
     val cs = MaterialTheme.colorScheme
-    when (g.style) {
-        "material" -> NavigationBar(containerColor = cs.surfaceContainer) {
+    // «auto» — как задумано стилем: у Material / iOS / Бумаги — панель во всю ширину, у стеклянных — островок
+    val mode = when (shape) {
+        "rounded", "island", "flat" -> shape
+        else -> if (g.style == "material" || g.style == "ios" || g.style == "paper") "flat" else "island"
+    }
+    val top = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+    when {
+        mode == "island" -> IslandTabBar(items, selected, onSelect)
+
+        g.style == "material" -> NavigationBar(
+            modifier = if (mode == "rounded") Modifier.clip(top) else Modifier,
+            containerColor = cs.surfaceContainer,
+        ) {
             items.forEachIndexed { i, item ->
                 NavigationBarItem(
                     selected = i == selected,
@@ -308,68 +319,101 @@ fun StyledTabBar(items: List<TabItem>, selected: Int, onSelect: (Int) -> Unit) {
             }
         }
 
-        "ios", "paper" -> Column(Modifier.fillMaxWidth().background(cs.surface.copy(alpha = 0.94f))) {
-            Box(Modifier.fillMaxWidth().height(0.5.dp).background(cs.outlineVariant))
-            Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(top = 6.dp, bottom = 4.dp)) {
-                items.forEachIndexed { i, item ->
-                    val c by androidx.compose.animation.animateColorAsState(
-                        if (i == selected) cs.primary else cs.onSurfaceVariant, tween(200), label = "tab",
-                    )
-                    Column(
-                        Modifier
-                            .weight(1f)
-                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onSelect(i) },
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Icon(item.icon, contentDescription = item.title, tint = c, modifier = Modifier.size(26.dp))
-                        Text(item.title, style = MaterialTheme.typography.labelSmall, color = c)
-                    }
-                }
+        mode == "rounded" && g.style != "ios" && g.style != "paper" ->
+            // стеклянные стили: матовая панель с закруглённым верхом
+            GlassCard(Modifier.fillMaxWidth(), shape = top, strong = true) {
+                PlainTabRow(items, selected, Modifier.navigationBarsPadding().padding(top = 10.dp, bottom = 6.dp), onSelect)
             }
-        }
 
-        else -> Box(
+        else -> Column(
             Modifier
                 .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(start = 28.dp, end = 28.dp, bottom = 10.dp, top = 4.dp),
+                .then(if (mode == "rounded") Modifier.clip(top) else Modifier)
+                .background(if (mode == "rounded") cs.surfaceContainerHigh else cs.surface.copy(alpha = 0.94f)),
         ) {
-            GlassCard(Modifier.fillMaxWidth().height(64.dp), shape = RoundedCornerShape(50), strong = true) {
-                BoxWithConstraints(Modifier.fillMaxSize().padding(6.dp)) {
-                    val cell = maxWidth / items.size
-                    val x by androidx.compose.animation.core.animateDpAsState(
-                        cell * selected, spring(dampingRatio = 0.72f, stiffness = 380f), label = "tabInd",
-                    )
-                    Box(
-                        Modifier
-                            .offset(x = x)
-                            .width(cell)
-                            .fillMaxHeight()
-                            .clip(RoundedCornerShape(50))
-                            .background(cs.primary.copy(alpha = if (g.dark) 0.30f else 0.16f)),
-                    )
-                    Row(Modifier.fillMaxSize()) {
-                        items.forEachIndexed { i, item ->
-                            val c by androidx.compose.animation.animateColorAsState(
-                                if (i == selected) cs.primary else cs.onSurfaceVariant, tween(200), label = "tab",
+            if (mode != "rounded") Box(Modifier.fillMaxWidth().height(0.5.dp).background(cs.outlineVariant))
+            PlainTabRow(
+                items, selected,
+                Modifier.navigationBarsPadding().padding(top = if (mode == "rounded") 10.dp else 6.dp, bottom = 4.dp),
+                onSelect,
+            )
+        }
+    }
+}
+
+/** Ряд значков с подписями — для панели во всю ширину. */
+@Composable
+private fun PlainTabRow(items: List<TabItem>, selected: Int, modifier: Modifier, onSelect: (Int) -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    Row(modifier.fillMaxWidth()) {
+        items.forEachIndexed { i, item ->
+            val c by androidx.compose.animation.animateColorAsState(
+                if (i == selected) cs.primary else cs.onSurfaceVariant, tween(200), label = "tab",
+            )
+            Column(
+                Modifier
+                    .weight(1f)
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onSelect(i) },
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Icon(item.icon, contentDescription = item.title, tint = c, modifier = Modifier.size(26.dp))
+                Text(
+                    item.title,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = c,
+                    fontWeight = if (i == selected) FontWeight.Bold else FontWeight.Normal,
+                )
+            }
+        }
+    }
+}
+
+/** «Островок»: парящая капсула над нижним краем с бегающей подсветкой выбранной вкладки. */
+@Composable
+private fun IslandTabBar(items: List<TabItem>, selected: Int, onSelect: (Int) -> Unit) {
+    val g = LocalGlass.current
+    val cs = MaterialTheme.colorScheme
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(start = 28.dp, end = 28.dp, bottom = 10.dp, top = 4.dp),
+    ) {
+        GlassCard(Modifier.fillMaxWidth().height(64.dp), shape = RoundedCornerShape(50), strong = true) {
+            BoxWithConstraints(Modifier.fillMaxSize().padding(6.dp)) {
+                val cell = maxWidth / items.size
+                val x by androidx.compose.animation.core.animateDpAsState(
+                    cell * selected, spring(dampingRatio = 0.72f, stiffness = 380f), label = "tabInd",
+                )
+                Box(
+                    Modifier
+                        .offset(x = x)
+                        .width(cell)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(50))
+                        .background(cs.primary.copy(alpha = if (g.dark) 0.30f else 0.16f)),
+                )
+                Row(Modifier.fillMaxSize()) {
+                    items.forEachIndexed { i, item ->
+                        val c by androidx.compose.animation.animateColorAsState(
+                            if (i == selected) cs.primary else cs.onSurfaceVariant, tween(200), label = "tab",
+                        )
+                        Column(
+                            Modifier
+                                .width(cell)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(50))
+                                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onSelect(i) },
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                        ) {
+                            Icon(item.icon, contentDescription = item.title, tint = c, modifier = Modifier.size(22.dp))
+                            Text(
+                                item.title,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = c,
+                                fontWeight = if (i == selected) FontWeight.Bold else FontWeight.Normal,
                             )
-                            Column(
-                                Modifier
-                                    .width(cell)
-                                    .fillMaxHeight()
-                                    .clip(RoundedCornerShape(50))
-                                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onSelect(i) },
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center,
-                            ) {
-                                Icon(item.icon, contentDescription = item.title, tint = c, modifier = Modifier.size(22.dp))
-                                Text(
-                                    item.title,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = c,
-                                    fontWeight = if (i == selected) FontWeight.Bold else FontWeight.Normal,
-                                )
-                            }
                         }
                     }
                 }

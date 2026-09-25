@@ -63,6 +63,7 @@ class Storage(private val dir: File) {
             iconFollowsAccent = o["iconAccent"]?.let { it.truthy() } ?: d.iconFollowsAccent,
             autoUpdateCheck = o["updCheck"]?.let { it.truthy() } ?: d.autoUpdateCheck,
             autoInstall = o["updAuto"]?.let { it.truthy() } ?: d.autoInstall,
+            tabBarShape = o["barShape"].str() ?: d.tabBarShape,
             ongoingLesson = o["nowNotif2"]?.let { it.truthy() } ?: d.ongoingLesson,
             bottomTabs = o["tabs2"].str()?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() } ?: d.bottomTabs,
         )
@@ -91,6 +92,7 @@ class Storage(private val dir: File) {
             put("updAuto", p.autoInstall)
             put("tabs2", p.bottomTabs.joinToString(","))
             put("nowNotif2", p.ongoingLesson)
+            put("barShape", p.tabBarShape)
         }
         writeAtomic(prefsFile, o.toString())
     }

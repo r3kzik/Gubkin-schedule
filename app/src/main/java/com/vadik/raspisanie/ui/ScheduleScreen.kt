@@ -211,6 +211,7 @@ private fun MainTabs(state: UiState, vm: MainViewModel) {
         StyledTabBar(
             bar.map { TabItem(Tabs.title(it), Tabs.icon(it)) },
             bar.indexOf(if (onBar) state.tab else Tabs.MORE),
+            shape = state.prefs.tabBarShape,
         ) { vm.selectTab(bar[it]) }
     }
 }
