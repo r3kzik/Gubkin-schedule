@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">MyGub Beta</string>
+    <string name="app_name">MyGub</string>
     <string name="widget_description">Пары на сегодня или завтра</string>
     <string name="widget_next_description">Следующая пара: время, аудитория, корпус и этаж</string>
     <string name="widget_compact_description">Ближайшие пары дня в компактном виджете</string>
