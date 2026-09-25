@@ -28,6 +28,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -136,6 +137,17 @@ fun LessonScreen(detail: LessonDetail, state: UiState, vm: MainViewModel, onBack
                     highlight = if (l.teacherChanged) red else null,
                     was = l.oldTeacher,
                 )
+                // расписание преподавателя: где он ещё ведёт пары
+                val teachers = remember(l.raw) {
+                    com.vadik.raspisanie.data.TeacherParser.teachersFromRaw(l.raw)
+                        .let { all -> if (l.teacherChanged) all.filter { t -> l.teacherFull?.contains(t.fullName) != false } else all }
+                        .distinctBy { it.id }
+                }
+                teachers.forEach { t ->
+                    Spacer(Modifier.height(4.dp))
+                    GlassPill("Расписание: ${t.shortName}", selected = false) { vm.openTeacherFromLesson(t) }
+                }
+                if (teachers.isNotEmpty()) Spacer(Modifier.height(4.dp))
                 if (l.subgroup != null) InfoLine("Подгруппа", "${l.subgroup}-я подгруппа")
                 l.department?.let { InfoLine("Кафедра", it) }
                 l.info?.let { InfoLine("Доп. информация", it) }

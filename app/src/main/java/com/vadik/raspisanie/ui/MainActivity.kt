@@ -26,6 +26,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        handleIntent(intent)
         setContent {
             val state by vm.state.collectAsState()
             val dark = effectiveDark(com.vadik.raspisanie.data.Edition.effective(state.prefs).style, state.prefs.theme)
@@ -55,6 +56,23 @@ class MainActivity : ComponentActivity() {
         ) {
             askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
+    }
+
+    /** Открыть нужный раздел, если попросил виджет или уведомление. */
+    private fun handleIntent(i: android.content.Intent?) {
+        val tab = i?.getStringExtra(EXTRA_TAB) ?: return
+        i.removeExtra(EXTRA_TAB)
+        vm.selectTab(tab)
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntent(intent)
+    }
+
+    companion object {
+        const val EXTRA_TAB = "tab"
     }
 
     override fun onStart() {

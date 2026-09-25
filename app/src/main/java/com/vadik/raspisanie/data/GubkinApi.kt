@@ -69,6 +69,21 @@ class GubkinApi(cookieFile: File) : ScheduleSource {
     override fun groupsJson(facultyId: String): String =
         apiGet("schedule/api/api.php?act=list&method=getFacultyGroups&facultyId=$facultyId")
 
+    override fun teacherWeekJson(date: LocalDate, teacherId: String, divisionId: String?, variant: Int): String {
+        val d = "${date.dayOfMonth}-${date.monthValue}-${date.year}"
+        val id = java.net.URLEncoder.encode(teacherId, "UTF-8")
+        val div = divisionId?.let { "&divisionId=" + java.net.URLEncoder.encode(it, "UTF-8") }.orEmpty()
+        return apiGet(
+            "schedule/api/api.php?" + TEACHER_WEEK[variant].replace("{d}", d).replace("{id}", id).replace("{div}", div),
+        )
+    }
+
+    override fun teachersJson(variant: Int): String =
+        apiGet("schedule/api/api.php?" + TEACHER_LIST[variant])
+
+    override val teacherWeekVariants: Int get() = TEACHER_WEEK.size
+    override val teacherListVariants: Int get() = TEACHER_LIST.size
+
     /** Картинка капчи (JPEG/PNG). */
     fun captchaImage(): ByteArray {
         visit(force = false)
@@ -104,6 +119,17 @@ class GubkinApi(cookieFile: File) : ScheduleSource {
 
     companion object {
         const val BASE = "https://lk.gubkin.ru/"
+
+        /** Возможные адреса расписания преподавателя — рабочий приложение запомнит. */
+        private val TEACHER_WEEK = listOf(
+            // так делает сам сайт: act=schedule&date=25-9-2026&divisionId=1507&teacherId=BgJqbgw=
+            "act=schedule&date={d}{div}&teacherId={id}",
+            "act=schedule&date={d}&teacherId={id}",
+        )
+        private val TEACHER_LIST = listOf(
+            "act=list&method=getTeachers",
+            "act=list&method=getLecturers",
+        )
         private const val UA = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 " +
             "(KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36"
     }
