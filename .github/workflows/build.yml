@@ -1,8 +1,8 @@
-name: Сборка MyGub Beta
+name: Сборка MyGub
 
 on:
   push:
-    branches: [beta]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -58,25 +58,26 @@ jobs:
 
       - name: Переименовать APK
         if: steps.key.outputs.ok == 'true'
-        run: cp app/build/outputs/apk/release/app-release.apk mygub-beta.apk
+        run: cp app/build/outputs/apk/release/app-release.apk mygub.apk
 
       - name: Сохранить APK в сборке
         if: steps.key.outputs.ok == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: mygub-beta-apk
-          path: mygub-beta.apk
+          name: mygub-apk
+          path: mygub.apk
 
       - name: Опубликовать релиз (удобно скачивать с телефона)
         if: steps.key.outputs.ok == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: beta-${{ github.run_number }}
-          name: MyGub Beta 2.3.${{ github.run_number }}
-          body: "🧪 Тестовая версия MyGub с новыми функциями. Ставится РЯДОМ с основным приложением (отдельная иконка MyGub Beta). Может содержать ошибки. Скачайте **mygub-beta.apk** ниже. Дальше приложение обновляется само: Настройки → Обновления."
-          files: mygub-beta.apk
-          prerelease: true
-          make_latest: false
+          tag_name: build-${{ github.run_number }}
+          name: MyGub 2.3.${{ github.run_number }}
+          body: "Новое: вкладка «Преподаватели» (где и когда пары у любого преподавателя), раздел «Другое» и настраиваемая нижняя панель, виджет «Домашка» со сроками, расписание дня картинкой и текстом, текущая пара в шторке (включается в настройках), QR-код «Поделиться MyGub». Пары потока объединяются в одну карточку.
+
+Скачайте **mygub.apk** ниже или обновитесь прямо в приложении: Настройки → Обновления."
+          files: mygub.apk
+          make_latest: true
 
       - name: Нет ключа — релиз не опубликован
         if: steps.key.outputs.ok != 'true'
