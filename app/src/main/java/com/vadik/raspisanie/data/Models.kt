@@ -103,6 +103,8 @@ data class Prefs(
     val autoInstall: Boolean = false,
     /** Разделы на нижней панели кроме «Расписания» и «Другого» (не больше трёх). */
     val bottomTabs: List<String> = listOf("subjects", "settings"),
+    /** Постоянное уведомление «Текущая пара» в шторке. */
+    val ongoingLesson: Boolean = true,
 ) {
     /** Пара другой подгруппы (не моей). */
     fun isOtherSubgroup(l: Lesson): Boolean =

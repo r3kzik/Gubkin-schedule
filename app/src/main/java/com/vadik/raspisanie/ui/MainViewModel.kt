@@ -516,7 +516,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
         _state.update { it.copy(hwDraft = null) }
         viewModelScope.launch {
-            val list = withContext(Dispatchers.IO) { repo.upsertHomework(h) }
+            val list = withContext(Dispatchers.IO) { repo.upsertHomework(h).also { homeworkChanged() } }
             _state.update { it.copy(homework = list) }
         }
     }
@@ -524,12 +524,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleHomework(h: Homework) {
         val upd = h.copy(done = !h.done)
         _state.update { st -> st.copy(homework = st.homework.map { if (it.id == h.id) upd else it }) }
-        viewModelScope.launch(Dispatchers.IO) { repo.upsertHomework(upd) }
+        viewModelScope.launch(Dispatchers.IO) { repo.upsertHomework(upd); homeworkChanged() }
     }
 
     fun deleteHomework(id: String) {
         _state.update { st -> st.copy(homework = st.homework.filter { it.id != id }, hwDraft = null) }
-        viewModelScope.launch(Dispatchers.IO) { repo.deleteHomework(id) }
+        viewModelScope.launch(Dispatchers.IO) { repo.deleteHomework(id); homeworkChanged() }
     }
 
     fun updatePrefs(change: (Prefs) -> Prefs) {
@@ -542,6 +542,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun rawFile() = repo.rawFile()
+
+    /** Виджет «Домашка» показывает свежий список. */
+    private fun homeworkChanged() {
+        runCatching { com.vadik.raspisanie.widget.WidgetKit.updateAll(app) }
+    }
 
     // ------------------------------------------------------------ преподаватели
 

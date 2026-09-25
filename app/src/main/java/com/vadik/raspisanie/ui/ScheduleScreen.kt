@@ -78,6 +78,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -581,8 +582,21 @@ private fun DayPage(
         // «Обновлено …» и копирование — в самом конце списка, уезжают вместе с парами
         item {
             Column(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                GlassPill("⧉ Скопировать текстом", selected = false) {
-                    copyText(ctx, ScheduleText.day(date, lessons, groupName))
+                val cs = MaterialTheme.colorScheme
+                val red = changedColor()
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GlassPill("⧉ Текстом", selected = false) {
+                        copyText(ctx, ScheduleText.day(date, lessons, groupName))
+                    }
+                    GlassPill("🖼 Картинкой", selected = false) {
+                        val colors = ImageColors(
+                            primary = cs.primary.toArgb(), onPrimary = cs.onPrimary.toArgb(),
+                            tertiary = cs.tertiary.toArgb(), background = cs.surface.toArgb(),
+                            card = cs.surfaceContainerHigh.toArgb(), text = cs.onSurface.toArgb(),
+                            muted = cs.onSurfaceVariant.toArgb(), red = red.toArgb(),
+                        )
+                        DayImage.share(ctx, DayImage.render(date, lessons, groupName, colors), date)
+                    }
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(

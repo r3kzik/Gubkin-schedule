@@ -45,6 +45,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -68,6 +69,8 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
     val prefs = state.prefs
     val ctx = LocalContext.current
     val cs = MaterialTheme.colorScheme
+    var showShare by remember { mutableStateOf(false) }
+    if (showShare) ShareAppDialog { showShare = false }
     Column(Modifier.fillMaxSize()) {
         GlassTopBar("Настройки", onBack = null)
         Column(
@@ -145,6 +148,12 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
                 }
                 Divider()
                 SwitchRow(
+                    "Текущая пара в шторке",
+                    "Что идёт, в какой аудитории и сколько осталось; на перемене — где следующая",
+                    prefs.ongoingLesson,
+                ) { v -> vm.updatePrefs { it.copy(ongoingLesson = v) } }
+                Divider()
+                SwitchRow(
                     "Сообщать об изменениях",
                     "Замены, отмены, переносы — проверка раз в 3 часа",
                     prefs.changeNotify,
@@ -189,6 +198,8 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
                 NavRow("Предложить улучшение", "Идея, чего не хватает в MyGub") {
                     openTelegram(ctx, "Предложение для MyGub (${appVersion(ctx)}): ")
                 }
+                Divider()
+                NavRow("Поделиться MyGub", "QR-код для установки на телефон друга") { showShare = true }
             }
 
             SectionTitle("Помощь")
