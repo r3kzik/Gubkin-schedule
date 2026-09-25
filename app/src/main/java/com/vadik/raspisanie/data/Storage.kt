@@ -64,7 +64,7 @@ class Storage(private val dir: File) {
             autoUpdateCheck = o["updCheck"]?.let { it.truthy() } ?: d.autoUpdateCheck,
             autoInstall = o["updAuto"]?.let { it.truthy() } ?: d.autoInstall,
             ongoingLesson = o["nowNotif2"]?.let { it.truthy() } ?: d.ongoingLesson,
-            bottomTabs = o["tabs"].str()?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() } ?: d.bottomTabs,
+            bottomTabs = o["tabs2"].str()?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() } ?: d.bottomTabs,
         )
     } catch (e: Exception) {
         Prefs()
@@ -89,7 +89,7 @@ class Storage(private val dir: File) {
             put("iconAccent", p.iconFollowsAccent)
             put("updCheck", p.autoUpdateCheck)
             put("updAuto", p.autoInstall)
-            put("tabs", p.bottomTabs.joinToString(","))
+            put("tabs2", p.bottomTabs.joinToString(","))
             put("nowNotif2", p.ongoingLesson)
         }
         writeAtomic(prefsFile, o.toString())

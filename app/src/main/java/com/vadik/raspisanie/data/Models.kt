@@ -102,7 +102,7 @@ data class Prefs(
     /** Скачивать и ставить обновление сразу, без вопроса (Android сам подтвердит установку). */
     val autoInstall: Boolean = false,
     /** Разделы на нижней панели кроме «Расписания» и «Другого» (не больше трёх). */
-    val bottomTabs: List<String> = listOf("subjects", "settings"),
+    val bottomTabs: List<String> = listOf("teachers", "settings"),
     /** Постоянное уведомление «Текущая пара» в шторке (по умолчанию выключено). */
     val ongoingLesson: Boolean = false,
 ) {
