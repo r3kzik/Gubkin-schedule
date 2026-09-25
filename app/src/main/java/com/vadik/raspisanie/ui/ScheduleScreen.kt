@@ -211,6 +211,7 @@ private fun MainTabs(state: UiState, vm: MainViewModel) {
         StyledTabBar(
             bar.map { TabItem(Tabs.title(it), Tabs.icon(it)) },
             bar.indexOf(if (onBar) state.tab else Tabs.MORE),
+            shape = state.prefs.tabBarShape,
         ) { vm.selectTab(bar[it]) }
     }
 }
@@ -278,7 +279,7 @@ fun ScheduleScreen(state: UiState, vm: MainViewModel) {
                 ).joinToString(" · ")
                 Text(sub, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant, maxLines = 1)
             }
-            GlassIconButton(Icons.Filled.Refresh, "Обновить", size = 38.dp, iconRotation = spin) { vm.refresh() }
+            GlassIconButton(Icons.Filled.Refresh, "Обновить", size = 38.dp, iconRotation = spin) { vm.refresh(manual = true) }
         }
 
         // ---------------- неделя и дни
@@ -325,6 +326,7 @@ fun ScheduleScreen(state: UiState, vm: MainViewModel) {
             )
         }
         UpdateBanner(state, vm)
+        SlowSiteNote(state.refreshing)
 
         // ---------------- пары
         Spacer(Modifier.height(4.dp))

@@ -184,11 +184,24 @@ val STYLES = listOf(
     StyleInfo("gradient", "Градиент", "Сочный переливающийся фон и белые матовые карточки"),
     StyleInfo("amoled", "AMOLED", "Чистый чёрный с тонкой цветной обводкой — бережёт батарею"),
     StyleInfo("paper", "Бумага", "Тёплый кремовый фон и спокойные карточки, как в заметках"),
+    StyleInfo("catppuccin", "Catppuccin", "Мягкая пастельная палитра: Latte днём, Mocha ночью"),
+    StyleInfo("nord", "Nord", "Холодные северные тона — спокойно для глаз"),
+    StyleInfo("sunset", "Закат", "Персиковый, коралловый и сиреневый градиент"),
+    StyleInfo("ocean", "Океан", "Глубокое тёмное стекло с бирюзовым свечением"),
+    StyleInfo("pastel", "Зефир", "Нежные пастельные переливы и светлые карточки"),
+    StyleInfo("mono", "Минимализм", "Только чёрное и белое, тонкие линии, ничего лишнего"),
 )
+
+/** Стили со своей палитрой: выбранный цвет интерфейса в них не применяется. */
+val FIXED_PALETTE_STYLES = setOf("catppuccin", "nord", "sunset", "ocean", "pastel", "mono")
+
+/** Стили с полупрозрачным стеклом (для них есть настройка плотности и «живой фон»). */
+val GLASSY_STYLES = setOf("glass", "night", "gradient", "ocean", "sunset", "pastel")
 
 /** Тёмная ли тема с учётом стиля: «Ночное стекло» всегда тёмное. */
 @Composable
-fun effectiveDark(style: String, mode: String): Boolean = style == "night" || style == "amoled" || isDark(mode)
+fun effectiveDark(style: String, mode: String): Boolean =
+    style == "night" || style == "amoled" || style == "ocean" || isDark(mode)
 
 /** iOS: нейтральные системные серые вместо тонированных поверхностей. */
 private fun iosNeutral(base: ColorScheme, dark: Boolean): ColorScheme = if (!dark) base.copy(
@@ -210,9 +223,117 @@ private fun nightScheme(base: ColorScheme): ColorScheme {
     return base.copy(background = bg, surface = bg, onBackground = Color(0xFFEDEDF4), onSurface = Color(0xFFEDEDF4))
 }
 
+private fun c(hex: Long) = Color(hex)
+
+/** Готовые палитры стилей, которые не зависят от выбранного цвета. */
+private fun fixedScheme(style: String, dark: Boolean): ColorScheme? = when (style) {
+    // Catppuccin: Latte / Mocha
+    "catppuccin" -> if (dark) darkColorScheme(
+        primary = c(0xFFCBA6F7), onPrimary = c(0xFF11111B), primaryContainer = c(0xFF45385F), onPrimaryContainer = c(0xFFEBDDFF),
+        secondary = c(0xFF89B4FA), onSecondary = c(0xFF11111B), secondaryContainer = c(0xFF2F3B5C), onSecondaryContainer = c(0xFFD6E4FF),
+        tertiary = c(0xFFF5C2E7), onTertiary = c(0xFF11111B), tertiaryContainer = c(0xFF5A3A55), onTertiaryContainer = c(0xFFFFE3F6),
+        background = c(0xFF1E1E2E), onBackground = c(0xFFCDD6F4), surface = c(0xFF1E1E2E), onSurface = c(0xFFCDD6F4),
+        surfaceVariant = c(0xFF313244), onSurfaceVariant = c(0xFFA6ADC8), surfaceContainerLowest = c(0xFF11111B),
+        surfaceContainerLow = c(0xFF181825), surfaceContainer = c(0xFF26263A), surfaceContainerHigh = c(0xFF313244),
+        surfaceContainerHighest = c(0xFF45475A), outline = c(0xFF6C7086), outlineVariant = c(0xFF45475A), error = c(0xFFF38BA8),
+    ) else lightColorScheme(
+        primary = c(0xFF8839EF), onPrimary = Color.White, primaryContainer = c(0xFFE8DAFF), onPrimaryContainer = c(0xFF3A1170),
+        secondary = c(0xFF1E66F5), onSecondary = Color.White, secondaryContainer = c(0xFFDCE6FF), onSecondaryContainer = c(0xFF0B2A6B),
+        tertiary = c(0xFFEA76CB), onTertiary = Color.White, tertiaryContainer = c(0xFFFBE0F3), onTertiaryContainer = c(0xFF5E1B4D),
+        background = c(0xFFEFF1F5), onBackground = c(0xFF4C4F69), surface = c(0xFFF8F9FB), onSurface = c(0xFF4C4F69),
+        surfaceVariant = c(0xFFCCD0DA), onSurfaceVariant = c(0xFF6C6F85), surfaceContainerLowest = Color.White,
+        surfaceContainerLow = c(0xFFF4F5F8), surfaceContainer = c(0xFFE6E9EF), surfaceContainerHigh = c(0xFFFBFBFD),
+        surfaceContainerHighest = c(0xFFDCE0E8), outline = c(0xFF9CA0B0), outlineVariant = c(0xFFBCC0CC), error = c(0xFFD20F39),
+    )
+    // Nord: Snow Storm / Polar Night + Frost
+    "nord" -> if (dark) darkColorScheme(
+        primary = c(0xFF88C0D0), onPrimary = c(0xFF2E3440), primaryContainer = c(0xFF3E5663), onPrimaryContainer = c(0xFFD8EEF4),
+        secondary = c(0xFF81A1C1), onSecondary = c(0xFF2E3440), secondaryContainer = c(0xFF3D4B60), onSecondaryContainer = c(0xFFDCE6F2),
+        tertiary = c(0xFFB48EAD), onTertiary = c(0xFF2E3440), tertiaryContainer = c(0xFF524559), onTertiaryContainer = c(0xFFF0E1EE),
+        background = c(0xFF2E3440), onBackground = c(0xFFECEFF4), surface = c(0xFF2E3440), onSurface = c(0xFFECEFF4),
+        surfaceVariant = c(0xFF434C5E), onSurfaceVariant = c(0xFFB8C1D1), surfaceContainerLowest = c(0xFF272C36),
+        surfaceContainerLow = c(0xFF323846), surfaceContainer = c(0xFF353B49), surfaceContainerHigh = c(0xFF3B4252),
+        surfaceContainerHighest = c(0xFF434C5E), outline = c(0xFF7B879C), outlineVariant = c(0xFF4C566A), error = c(0xFFBF616A),
+    ) else lightColorScheme(
+        primary = c(0xFF5E81AC), onPrimary = Color.White, primaryContainer = c(0xFFD6E2F0), onPrimaryContainer = c(0xFF1F3450),
+        secondary = c(0xFF81A1C1), onSecondary = Color.White, secondaryContainer = c(0xFFDDE7F2), onSecondaryContainer = c(0xFF22364D),
+        tertiary = c(0xFFB48EAD), onTertiary = Color.White, tertiaryContainer = c(0xFFEFE2EC), onTertiaryContainer = c(0xFF4A3346),
+        background = c(0xFFE5E9F0), onBackground = c(0xFF2E3440), surface = c(0xFFF2F4F8), onSurface = c(0xFF2E3440),
+        surfaceVariant = c(0xFFD8DEE9), onSurfaceVariant = c(0xFF4C566A), surfaceContainerLowest = Color.White,
+        surfaceContainerLow = c(0xFFF5F7FA), surfaceContainer = c(0xFFECEFF4), surfaceContainerHigh = c(0xFFF7F8FB),
+        surfaceContainerHighest = c(0xFFD8DEE9), outline = c(0xFF8A94A8), outlineVariant = c(0xFFD8DEE9), error = c(0xFFBF616A),
+    )
+    // Закат: персик → коралл → сирень
+    "sunset" -> if (dark) darkColorScheme(
+        primary = c(0xFFFF9A76), onPrimary = c(0xFF3A1206), primaryContainer = c(0xFF6B2C23), onPrimaryContainer = c(0xFFFFDBCF),
+        secondary = c(0xFFE7A6D8), onSecondary = c(0xFF3D1033), secondaryContainer = c(0xFF3E2459), onSecondaryContainer = c(0xFFF3DAFF),
+        tertiary = c(0xFFFFC27A), onTertiary = c(0xFF3D2300), tertiaryContainer = c(0xFF5E2344), onTertiaryContainer = c(0xFFFFD9E6),
+        background = c(0xFF1A0F14), onBackground = c(0xFFFBE9E4), surface = c(0xFF22141A), onSurface = c(0xFFFBE9E4),
+        surfaceVariant = c(0xFF3A262D), onSurfaceVariant = c(0xFFCDB0AA), surfaceContainerLowest = c(0xFF140A0F),
+        surfaceContainerLow = c(0xFF22141A), surfaceContainer = c(0xFF2A1920), surfaceContainerHigh = c(0xFF331E26),
+        surfaceContainerHighest = c(0xFF3C232C), outline = c(0xFF8C6E70), outlineVariant = c(0xFF4A2F37), error = c(0xFFFF8A80),
+    ) else lightColorScheme(
+        primary = c(0xFFE0533D), onPrimary = Color.White, primaryContainer = c(0xFFFFD6B8), onPrimaryContainer = c(0xFF4A1405),
+        secondary = c(0xFFB5528F), onSecondary = Color.White, secondaryContainer = c(0xFFE4C1F9), onSecondaryContainer = c(0xFF3C0F35),
+        tertiary = c(0xFFD9822B), onTertiary = Color.White, tertiaryContainer = c(0xFFFFB3B8), onTertiaryContainer = c(0xFF4A1016),
+        background = c(0xFFFFF4EC), onBackground = c(0xFF2A1A1A), surface = c(0xFFFFF9F4), onSurface = c(0xFF2A1A1A),
+        surfaceVariant = c(0xFFF6DED5), onSurfaceVariant = c(0xFF6E5555), surfaceContainerLowest = Color.White,
+        surfaceContainerLow = c(0xFFFFF6F0), surfaceContainer = c(0xFFFFF1E8), surfaceContainerHigh = c(0xFFFFFAF6),
+        surfaceContainerHighest = c(0xFFF8E6DC), outline = c(0xFFA88C86), outlineVariant = c(0xFFEBCFC4), error = c(0xFFC62828),
+    )
+    // Океан: всегда тёмный, бирюза и синева
+    "ocean" -> darkColorScheme(
+        primary = c(0xFF4DD0E1), onPrimary = c(0xFF00363D), primaryContainer = c(0xFF004F58), onPrimaryContainer = c(0xFF9EEFFD),
+        secondary = c(0xFF82B1FF), onSecondary = c(0xFF0A2350), secondaryContainer = c(0xFF16324D), onSecondaryContainer = c(0xFFD3E3FF),
+        tertiary = c(0xFF64FFDA), onTertiary = c(0xFF003828), tertiaryContainer = c(0xFF0D3B34), onTertiaryContainer = c(0xFFB9FFEC),
+        background = c(0xFF03111C), onBackground = c(0xFFE3F4F8), surface = c(0xFF03111C), onSurface = c(0xFFE3F4F8),
+        surfaceVariant = c(0xFF10303D), onSurfaceVariant = c(0xFF9DB8C2), surfaceContainerLowest = c(0xFF020B12),
+        surfaceContainerLow = c(0xFF071A26), surfaceContainer = c(0xFF0B2230), surfaceContainerHigh = c(0xFF0F2A3A),
+        surfaceContainerHighest = c(0xFF143345), outline = c(0xFF5E7F8C), outlineVariant = c(0xFF1D3F4E), error = c(0xFFFF8A80),
+    )
+    // Зефир: пастельные сирень, роза и мята
+    "pastel" -> if (dark) darkColorScheme(
+        primary = c(0xFFBFB1FF), onPrimary = c(0xFF251A5C), primaryContainer = c(0xFF2E2750), onPrimaryContainer = c(0xFFE6DEFF),
+        secondary = c(0xFF8FD9C0), onSecondary = c(0xFF00382A), secondaryContainer = c(0xFF1D3A33), onSecondaryContainer = c(0xFFCFF3E6),
+        tertiary = c(0xFFF4A8CF), onTertiary = c(0xFF4A1233), tertiaryContainer = c(0xFF43243A), onTertiaryContainer = c(0xFFFFD9EC),
+        background = c(0xFF14121C), onBackground = c(0xFFEEEAF7), surface = c(0xFF1B1826), onSurface = c(0xFFEEEAF7),
+        surfaceVariant = c(0xFF2C2840), onSurfaceVariant = c(0xFFB6AFCB), surfaceContainerLowest = c(0xFF0F0D16),
+        surfaceContainerLow = c(0xFF1B1826), surfaceContainer = c(0xFF211E2E), surfaceContainerHigh = c(0xFF282438),
+        surfaceContainerHighest = c(0xFF302B42), outline = c(0xFF7D7596), outlineVariant = c(0xFF3A3450), error = c(0xFFFF8A9A),
+    ) else lightColorScheme(
+        primary = c(0xFF7C6BD6), onPrimary = Color.White, primaryContainer = c(0xFFE6DEFF), onPrimaryContainer = c(0xFF2A1F63),
+        secondary = c(0xFF4FA387), onSecondary = Color.White, secondaryContainer = c(0xFFCFF3E6), onSecondaryContainer = c(0xFF0D3A2C),
+        tertiary = c(0xFFD16BA5), onTertiary = Color.White, tertiaryContainer = c(0xFFFFD9EC), onTertiaryContainer = c(0xFF4A1233),
+        background = c(0xFFFAF7FF), onBackground = c(0xFF221F2E), surface = Color.White, onSurface = c(0xFF221F2E),
+        surfaceVariant = c(0xFFECE6F8), onSurfaceVariant = c(0xFF635D78), surfaceContainerLowest = Color.White,
+        surfaceContainerLow = c(0xFFFBF9FF), surfaceContainer = c(0xFFF6F2FF), surfaceContainerHigh = Color.White,
+        surfaceContainerHighest = c(0xFFEFE9FB), outline = c(0xFFA39CB8), outlineVariant = c(0xFFE2DBF3), error = c(0xFFD32F4F),
+    )
+    // Минимализм: чёрное и белое
+    "mono" -> if (dark) darkColorScheme(
+        primary = Color.White, onPrimary = Color.Black, primaryContainer = c(0xFF2A2A2A), onPrimaryContainer = Color.White,
+        secondary = c(0xFFBDBDBD), onSecondary = Color.Black, secondaryContainer = c(0xFF262626), onSecondaryContainer = Color.White,
+        tertiary = c(0xFF9E9E9E), onTertiary = Color.Black, tertiaryContainer = c(0xFF222222), onTertiaryContainer = Color.White,
+        background = c(0xFF0B0B0B), onBackground = c(0xFFF5F5F5), surface = c(0xFF0B0B0B), onSurface = c(0xFFF5F5F5),
+        surfaceVariant = c(0xFF1E1E1E), onSurfaceVariant = c(0xFF9A9A9A), surfaceContainerLowest = Color.Black,
+        surfaceContainerLow = c(0xFF111111), surfaceContainer = c(0xFF141414), surfaceContainerHigh = c(0xFF161616),
+        surfaceContainerHighest = c(0xFF1E1E1E), outline = c(0xFF5C5C5C), outlineVariant = c(0xFF2C2C2C), error = c(0xFFFF6B6B),
+    ) else lightColorScheme(
+        primary = c(0xFF111111), onPrimary = Color.White, primaryContainer = c(0xFFE6E6E6), onPrimaryContainer = c(0xFF111111),
+        secondary = c(0xFF444444), onSecondary = Color.White, secondaryContainer = c(0xFFEDEDED), onSecondaryContainer = c(0xFF111111),
+        tertiary = c(0xFF777777), onTertiary = Color.White, tertiaryContainer = c(0xFFF0F0F0), onTertiaryContainer = c(0xFF111111),
+        background = c(0xFFF4F4F4), onBackground = c(0xFF0A0A0A), surface = Color.White, onSurface = c(0xFF0A0A0A),
+        surfaceVariant = c(0xFFEAEAEA), onSurfaceVariant = c(0xFF6B6B6B), surfaceContainerLowest = Color.White,
+        surfaceContainerLow = c(0xFFFAFAFA), surfaceContainer = c(0xFFF7F7F7), surfaceContainerHigh = Color.White,
+        surfaceContainerHighest = c(0xFFEDEDED), outline = c(0xFF9E9E9E), outlineVariant = c(0xFFDDDDDD), error = c(0xFFD32F2F),
+    )
+    else -> null
+}
+
 /** Цветовая схема для стиля. */
 @Composable
 fun schemeFor(style: String, dark: Boolean, accent: String): ColorScheme {
+    fixedScheme(style, dark)?.let { return it }
     val ctx = LocalContext.current
     val base = when {
         accent == "dynamic" && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
@@ -307,7 +428,34 @@ fun skinFor(style: String, scheme: ColorScheme, dark: Boolean, cornerPercent: In
             changed = if (dark) Color(0xFFFF8A80) else Color(0xFFC62828),
             style = "paper", flat = true, cornerScale = 0.75f * corner, pressScale = 0.98f,
         )
-        "gradient" -> GlassColors(
+        "catppuccin", "nord", "mono" -> GlassColors(
+            dark = dark,
+            fill = scheme.surfaceContainerHigh,
+            fillStrong = scheme.surfaceContainerHighest,
+            sheen = Color.Transparent,
+            // «Минимализм» — тонкая обводка вместо заливки разными тонами
+            borderTop = if (style == "mono") scheme.outlineVariant else Color.Transparent,
+            borderBottom = if (style == "mono") scheme.outlineVariant else Color.Transparent,
+            aurora = emptyList(),
+            base = scheme.background,
+            changed = scheme.error,
+            style = style, flat = true,
+            cornerScale = corner * when (style) { "mono" -> 0.6f; "nord" -> 0.85f; else -> 1f },
+            pressScale = 0.975f,
+        )
+        "ocean" -> GlassColors(
+            dark = true,
+            fill = Color(0xFF02101A).copy(alpha = al(0.40f)),
+            fillStrong = Color(0xFF02101A).copy(alpha = al(0.56f)),
+            sheen = Color.White.copy(alpha = 0.06f),
+            borderTop = p.copy(alpha = 0.50f),
+            borderBottom = p.copy(alpha = 0.06f),
+            aurora = listOf(p.copy(alpha = 0.70f), scheme.tertiary.copy(alpha = 0.50f), scheme.secondary.copy(alpha = 0.55f)),
+            base = scheme.background,
+            changed = scheme.error,
+            style = "ocean", cornerScale = corner,
+        )
+        "gradient", "sunset", "pastel" -> GlassColors(
             dark = dark,
             fill = (if (dark) Color.Black else Color.White).copy(alpha = al(if (dark) 0.30f else 0.62f)),
             fillStrong = (if (dark) Color.Black else Color.White).copy(alpha = al(if (dark) 0.42f else 0.78f)),
@@ -318,7 +466,7 @@ fun skinFor(style: String, scheme: ColorScheme, dark: Boolean, cornerPercent: In
             aurora = listOf(Color.White.copy(alpha = if (dark) 0.10f else 0.35f), Color.White.copy(alpha = if (dark) 0.06f else 0.25f), scheme.tertiary.copy(alpha = 0.35f)),
             base = scheme.background,
             changed = if (dark) Color(0xFFFF8A80) else Color(0xFFC62828),
-            style = "gradient", cornerScale = corner, gradient = true,
+            style = style, cornerScale = corner, gradient = true,
         )
         "material" -> GlassColors(
             dark = dark,

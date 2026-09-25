@@ -24,8 +24,8 @@ class GubkinApi(cookieFile: File) : ScheduleSource {
     private val client = OkHttpClient.Builder()
         .cookieJar(cookieJar)
         .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(25, TimeUnit.SECONDS)
-        .callTimeout(40, TimeUnit.SECONDS)
+        .readTimeout(40, TimeUnit.SECONDS)
+        .callTimeout(60, TimeUnit.SECONDS)
         .build()
 
     private fun request(path: String): Request.Builder = Request.Builder()
@@ -41,7 +41,12 @@ class GubkinApi(cookieFile: File) : ScheduleSource {
     }
 
     /** GET к API с одной повторной попыткой после нового «визита», если сессия протухла. */
+    @Volatile
+    private var lastUrl: String? = null
+    override val lastRequestUrl: String? get() = lastUrl
+
     private fun apiGet(path: String): String {
+        lastUrl = BASE + path
         visit(force = false)
         var attempt = 0
         while (true) {
@@ -127,8 +132,9 @@ class GubkinApi(cookieFile: File) : ScheduleSource {
             "act=schedule&date={d}&teacherId={id}",
         )
         private val TEACHER_LIST = listOf(
+            // так делает сам сайт при загрузке списка преподавателей
+            "act=List&method=getActiveTeachersByDivisionId",
             "act=list&method=getTeachers",
-            "act=list&method=getLecturers",
         )
         private const val UA = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 " +
             "(KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36"

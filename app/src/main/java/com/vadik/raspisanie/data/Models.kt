@@ -105,6 +105,8 @@ data class Prefs(
     val bottomTabs: List<String> = listOf("teachers", "settings"),
     /** Постоянное уведомление «Текущая пара» в шторке (по умолчанию выключено). */
     val ongoingLesson: Boolean = false,
+    /** Форма нижней панели: island (островок, по умолчанию) | rounded (закруглённая) | auto (как в стиле). */
+    val tabBarShape: String = "island",
 ) {
     /** Пара другой подгруппы (не моей). */
     fun isOtherSubgroup(l: Lesson): Boolean =
