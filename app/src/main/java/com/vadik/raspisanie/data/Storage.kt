@@ -63,6 +63,7 @@ class Storage(private val dir: File) {
             iconFollowsAccent = o["iconAccent"]?.let { it.truthy() } ?: d.iconFollowsAccent,
             autoUpdateCheck = o["updCheck"]?.let { it.truthy() } ?: d.autoUpdateCheck,
             autoInstall = o["updAuto"]?.let { it.truthy() } ?: d.autoInstall,
+            tabBarShape = o["barShape2"].str() ?: d.tabBarShape,
             ongoingLesson = o["nowNotif2"]?.let { it.truthy() } ?: d.ongoingLesson,
             bottomTabs = o["tabs2"].str()?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() } ?: d.bottomTabs,
         )
@@ -91,6 +92,7 @@ class Storage(private val dir: File) {
             put("updAuto", p.autoInstall)
             put("tabs2", p.bottomTabs.joinToString(","))
             put("nowNotif2", p.ongoingLesson)
+            put("barShape2", p.tabBarShape)
         }
         writeAtomic(prefsFile, o.toString())
     }
@@ -150,6 +152,23 @@ class Storage(private val dir: File) {
 
     fun saveProbe(m: Map<String, Long>) {
         writeAtomic(probeFile, buildJsonObject { m.forEach { (k, v) -> put(k, v) } }.toString())
+    }
+
+    private val teacherRaw get() = File(dir, "teacher_raw.txt")
+
+    fun saveTeacherRaw(text: String) = runCatching { writeAtomic(teacherRaw, text) }
+
+    private val teacherListRaw get() = File(dir, "teacher_list_raw.txt")
+
+    fun saveTeacherListRaw(text: String) = runCatching { writeAtomic(teacherListRaw, text) }
+
+    /** Оба журнала (расписание и список преподавателей) в одном файле; null — запросов ещё не было. */
+    fun teacherDiagnostics(): File? {
+        val parts = listOf(teacherRaw, teacherListRaw).filter { it.exists() }
+        if (parts.isEmpty()) return null
+        val out = File(dir, "teacher_diag.txt")
+        runCatching { out.writeText(parts.joinToString("\n\n") { it.readText() }) }
+        return out.takeIf { it.exists() }
     }
 
     private val teachersFile get() = File(dir, "teachers.json")

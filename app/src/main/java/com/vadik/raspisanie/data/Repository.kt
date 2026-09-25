@@ -96,6 +96,14 @@ class Repository(
     // ------------------------------------------------------------ преподаватели
 
     /** Преподаватели своей группы — из сохранённых недель, работает и без сети. */
+    /** Забыть, что адреса расписания преподавателя «не подошли», — попробовать снова. */
+    fun forgetTeacherProbe() {
+        storage.saveProbe(storage.loadProbe() - WEEK_KEY - "${WEEK_KEY}At" - LIST_KEY - "${LIST_KEY}At")
+    }
+
+    /** Что сайт ответил на запросы списка и расписания преподавателя — одним файлом, для диагностики. */
+    fun teacherRawFile() = storage.teacherDiagnostics()
+
     fun myTeachers(groupId: String): List<Teacher> = TeacherParser.teachersOfWeeks(storage.allWeeks(groupId))
 
     /** Порядок вариантов адреса: сначала тот, что уже сработал; пустой — если недавно не подошёл ни один. */
@@ -120,23 +128,35 @@ class Repository(
         val cached = storage.loadTeachers()
         if (!force && cached != null && clock() - cached.second < TEACHERS_TTL_MS) return cached.first
         var networkFailed = false
-        for (v in variantsToTry("list", source.teacherListVariants)) {
-            try {
-                val list = TeacherParser.parseTeacherList(source.teachersJson(v))
-                if (list.size >= 5) {
-                    storage.saveTeachers(list, clock())
-                    remember("list", v)
-                    return list
+        val log = StringBuilder("MyGub: список преподавателей\n")
+        try {
+            for (v in variantsToTry(LIST_KEY, source.teacherListVariants)) {
+                log.append("\n=== вариант $v ===\n")
+                try {
+                    val text = source.teachersJson(v)
+                    log.append(source.lastRequestUrl ?: "").append("\n").append(text.take(100_000)).append("\n")
+                    val list = TeacherParser.parseTeacherList(text)
+                    log.append("→ найдено преподавателей: ${list.size}\n")
+                    if (list.size >= 5) {
+                        storage.saveTeachers(list, clock())
+                        remember(LIST_KEY, v)
+                        return list
+                    }
+                } catch (e: CaptchaRequiredException) {
+                    log.append("→ сайт просит капчу\n")
+                    throw e
+                } catch (e: java.io.IOException) {
+                    log.append(source.lastRequestUrl ?: "").append("\n→ нет ответа: ${e.message}\n")
+                    networkFailed = true
+                } catch (e: Exception) {
+                    // этот адрес не подошёл — пробуем следующий
+                    log.append(source.lastRequestUrl ?: "").append("\n→ ошибка ${e.javaClass.simpleName}: ${e.message}\n")
                 }
-            } catch (e: CaptchaRequiredException) {
-                throw e
-            } catch (e: java.io.IOException) {
-                networkFailed = true
-            } catch (e: Exception) {
-                // этот адрес не подошёл — пробуем следующий
             }
+        } finally {
+            storage.saveTeacherListRaw(log.toString())
         }
-        if (!networkFailed && cached == null) remember("list", -1)
+        if (!networkFailed && cached == null) remember(LIST_KEY, -1)
         return cached?.first
     }
 
@@ -147,22 +167,42 @@ class Repository(
     fun teacherWeek(teacher: Teacher, date: LocalDate, settings: Settings): TeacherWeek {
         val monday = mondayOf(date)
         var networkFailed = false
-        for (v in variantsToTry("week", source.teacherWeekVariants)) {
-            try {
-                val w = TeacherParser.parseWeek(source.teacherWeekJson(monday, teacher.id, teacher.divisionId, v), teacher, monday, clock())
-                remember("week", v)
-                return w
-            } catch (e: CaptchaRequiredException) {
-                throw e
-            } catch (e: java.io.IOException) {
-                networkFailed = true
-                break
-            } catch (e: Exception) {
-                // адрес не подошёл
+        // журнал для кнопки «Отправить ответ сайта автору»: адрес, ответ или ошибка по каждому варианту
+        val log = StringBuilder("MyGub: ${teacher.fullName} (id ${teacher.id}, кафедра ${teacher.divisionId}), неделя $monday\n")
+        val variants = variantsToTry(WEEK_KEY, source.teacherWeekVariants)
+        if (variants.isEmpty()) log.append("Адреса сайта недавно не подошли — повторная попытка позже (или кнопка «Повторить»).\n")
+        try {
+            for (v in variants) {
+                log.append("\n=== вариант $v ===\n")
+                try {
+                    val text = source.teacherWeekJson(monday, teacher.id, teacher.divisionId, v)
+                    log.append(source.lastRequestUrl ?: "").append("\n").append(text.take(200_000)).append("\n")
+                    val w = TeacherParser.parseWeek(text, teacher, monday, clock())
+                    log.append("→ принято: пар ${w.lessons.size}\n")
+                    remember(WEEK_KEY, v)
+                    return w
+                } catch (e: CaptchaRequiredException) {
+                    log.append(source.lastRequestUrl ?: "").append("\n→ сайт просит капчу\n")
+                    throw e
+                } catch (e: java.io.IOException) {
+                    log.append(source.lastRequestUrl ?: "").append("\n→ нет ответа: ${e.javaClass.simpleName}: ${e.message}\n")
+                    networkFailed = true
+                    break
+                } catch (e: WrongEndpointException) {
+                    log.append("→ в ответе нет пар этого преподавателя\n")
+                } catch (e: Exception) {
+                    log.append(source.lastRequestUrl ?: "").append("\n→ ошибка ${e.javaClass.simpleName}: ${e.message}\n")
+                }
             }
+        } finally {
+            storage.saveTeacherRaw(log.toString())
         }
-        if (!networkFailed && storage.loadProbe()["week"]?.let { it >= 0 } != true) remember("week", -1)
+        if (!networkFailed && storage.loadProbe()[WEEK_KEY]?.let { it >= 0 } != true) remember(WEEK_KEY, -1)
         return TeacherParser.fromWeeks(storage.allWeeks(settings.groupId), teacher, monday, settings.groupName, clock())
+            .copy(
+                note = if (networkFailed) "Сайт вуза не ответил вовремя — пока показаны пары из расписания вашей группы."
+                else "Сайт не отдал полное расписание преподавателя — показаны только пары из расписания вашей группы.",
+            )
     }
 
     fun faculties(): List<Faculty> = ScheduleParser.parseFaculties(source.facultiesJson())
@@ -186,7 +226,10 @@ class Repository(
 
     companion object {
         private const val TEACHERS_TTL_MS = 7 * 24 * 60 * 60 * 1000L
-        private const val PROBE_RETRY_MS = 24 * 60 * 60 * 1000L
+        private const val PROBE_RETRY_MS = 6 * 60 * 60 * 1000L
+        /** Новый ключ — чтобы после обновления приложение заново попробовало адреса сайта. */
+        private const val WEEK_KEY = "tweek"
+        private const val LIST_KEY = "tlist"
 
         fun mondayOf(date: LocalDate): LocalDate = date.with(DayOfWeek.MONDAY)
 

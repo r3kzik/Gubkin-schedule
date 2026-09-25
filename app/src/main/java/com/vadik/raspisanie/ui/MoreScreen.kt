@@ -60,7 +60,9 @@ fun MoreScreen(state: UiState, vm: MainViewModel) {
             SectionTitle("Нижняя панель")
             SettingsCard {
                 Hint("Выберите до ${Tabs.MAX_EXTRA} разделов. «Расписание» и «Другое» всегда внизу, остальное — здесь.")
-                BarPreview(bar)
+                BarPreview(bar, prefs.tabBarShape)
+                Label("Форма панели")
+                Pills(Tabs.SHAPES, prefs.tabBarShape) { v -> vm.updatePrefs { it.copy(tabBarShape = v) } }
                 Tabs.OPTIONAL.forEach { id ->
                     Divider()
                     SwitchRow(Tabs.fullTitle(id), Tabs.subtitle(id), id in prefs.bottomTabs) { on ->
@@ -102,13 +104,19 @@ private fun SectionRow(id: String, onClick: () -> Unit) {
 
 /** Как будет выглядеть панель: значки в ряд. */
 @Composable
-private fun BarPreview(bar: List<String>) {
+private fun BarPreview(bar: List<String>, shape: String) {
     val cs = MaterialTheme.colorScheme
+    // превью повторяет выбранную форму: островок — капсула с отступами, закруглённая — скруглён верх
+    val (pad, sh) = when (shape) {
+        "island" -> 34.dp to RoundedCornerShape(50)
+        "rounded" -> 16.dp to RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)
+        else -> 16.dp to RoundedCornerShape(6.dp)
+    }
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-            .clip(RoundedCornerShape(18.dp))
+            .padding(horizontal = pad, vertical = 8.dp)
+            .clip(sh)
             .background(cs.surfaceVariant.copy(alpha = 0.6f))
             .padding(vertical = 10.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,

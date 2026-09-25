@@ -59,6 +59,9 @@ object Tabs {
         else -> Icons.Filled.DateRange
     }
 
+    /** Варианты формы нижней панели. */
+    val SHAPES = listOf("island" to "Островок", "rounded" to "Закруглённая", "auto" to "Как в стиле")
+
     /** Вкладки снизу: Расписание, выбранные разделы, «Другое» (и «Настройки» — последними, если выбраны). */
     fun bar(prefs: Prefs): List<String> {
         val extra = OPTIONAL.filter { it in prefs.bottomTabs }.take(MAX_EXTRA)

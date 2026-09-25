@@ -15,7 +15,7 @@ android {
         targetSdk = 34
         // номер сборки GitHub -> новая версия ставится поверх старой
         versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
-        versionName = "lite-2.3." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
+        versionName = "lite-2.4." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
     }
 
     // Ключ подписи MyGub хранится только в секретах GitHub (MYGUB_KEYSTORE), в репозитории его нет.

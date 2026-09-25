@@ -57,7 +57,7 @@ class RefreshWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ct
 
     companion object {
         private const val NAME = "schedule-refresh"
-        const val INTERVAL_HOURS = 3L
+        const val INTERVAL_HOURS = 6L
 
         fun schedule(ctx: Context) {
             val request = PeriodicWorkRequestBuilder<RefreshWorker>(INTERVAL_HOURS, TimeUnit.HOURS)
@@ -66,7 +66,7 @@ class RefreshWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ct
                 )
                 .build()
             WorkManager.getInstance(ctx)
-                .enqueueUniquePeriodicWork(NAME, ExistingPeriodicWorkPolicy.KEEP, request)
+                .enqueueUniquePeriodicWork(NAME, ExistingPeriodicWorkPolicy.UPDATE, request)
         }
     }
 }

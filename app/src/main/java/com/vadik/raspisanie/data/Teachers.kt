@@ -45,6 +45,8 @@ data class TeacherWeek(
     /** true — полное расписание с сайта; false — только пары вашей группы из сохранённых недель. */
     val full: Boolean,
     val fetchedAt: Long,
+    /** Почему показано не полное расписание (для пояснения на экране). */
+    val note: String? = null,
 ) {
     fun on(date: LocalDate) = lessons.filter { it.date == date }.sortedBy { timeKey(it.start) }
 }
@@ -113,22 +115,39 @@ object TeacherParser {
     fun parseTeacherList(text: String): List<Teacher> {
         val root = ScheduleParser.parseRoot(text)
         val out = LinkedHashMap<String, Teacher>()
-        fun walk(el: JsonElement?, depth: Int) {
-            if (el == null || depth > 6) return
+        fun isTeacher(o: JsonObject) = o["id"] != null &&
+            (o["lastName"] != null || o["fio"] != null || o["fullName"] != null)
+        // кафедра «сверху» (если сайт отдаёт список сгруппированным по кафедрам)
+        fun walk(el: JsonElement?, depth: Int, divId: String?, divName: String?) {
+            if (el == null || depth > 7) return
             when (el) {
-                is JsonArray -> el.forEach { item ->
-                    val o = item.obj()
-                    if (o != null && o["id"] != null &&
-                        (o["lastName"] != null || o["fio"] != null || o["fullName"] != null)
-                    ) {
-                        teacherOf(o)?.let { out.putIfAbsent(it.id, it) }
-                    } else walk(item, depth + 1)
+                is JsonArray -> el.forEach { walk(it, depth + 1, divId, divName) }
+                is JsonObject -> if (isTeacher(el)) {
+                    teacherOf(el)?.let { t ->
+                        val withDiv = t.copy(
+                            divisionId = t.divisionId ?: divId,
+                            department = t.department ?: divName,
+                        )
+                        val old = out[t.id]
+                        if (old == null || (old.divisionId == null && withDiv.divisionId != null)) out[t.id] = withDiv
+                    }
+                } else {
+                    val name = el["name"].str()
+                    val isDivision = el["id"] != null && name != null
+                    el.forEach { (k, v) ->
+                        // ключ-число вида "1526": {...} — тоже похоже на кафедру
+                        val keyDiv = k.takeIf { it.all(Char::isDigit) }
+                        walk(
+                            v, depth + 1,
+                            if (isDivision) el["id"].str() else keyDiv ?: divId,
+                            if (isDivision) name else divName,
+                        )
+                    }
                 }
-                is JsonObject -> el.values.forEach { walk(it, depth + 1) }
                 else -> Unit
             }
         }
-        walk(root["rows"] ?: root, 0)
+        walk(root["rows"] ?: root, 0, null, null)
         return out.values.sortedBy { it.searchKey }
     }
 
@@ -144,31 +163,41 @@ object TeacherParser {
                 n to date
             }.toMap()
         val orgs = rows["organizations"].arr() ?: throw WrongEndpointException()
-        var total = 0
-        val out = mutableListOf<TeacherLesson>()
-        for (org in orgs) {
-            val o = org.obj() ?: continue
+        // преподаватель в паре: по id, а если id записан иначе — по ФИО
+        fun isHim(el: JsonElement): Boolean =
+            el.obj()?.get("id").str() == teacher.id || ScheduleParser.fullName(el) == teacher.fullName
+        val all = orgs.mapNotNull { it.obj() }.flatMap { o ->
             val chunks = o["lessonsTimeChunks"].arr().orEmpty().map { it.str().orEmpty() }
-            for (l in o["lessons"].arr().orEmpty()) {
-                val lo = l.obj() ?: continue
-                total++
-                val base = lo["teachers"].arr().orEmpty().mapNotNull { it.obj()?.get("id").str() }
-                val repl = lo["changes"].obj()?.get("teachers").arr().orEmpty().mapNotNull { it.obj()?.get("id").str() }
+            o["lessons"].arr().orEmpty().mapNotNull { it.obj() }.map { it to chunks }
+        }
+        fun baseOf(lo: JsonObject) = lo["teachers"].arr().orEmpty()
+        fun replOf(lo: JsonObject) = lo["changes"].obj()?.get("teachers").arr().orEmpty()
+        val mentioned = all.any { (lo, _) -> (baseOf(lo) + replOf(lo)).any(::isHim) }
+        val anyTeachers = all.any { (lo, _) -> (baseOf(lo) + replOf(lo)).isNotEmpty() }
+        // в ответе только чужие преподаватели — значит, запрос понят не так
+        if (all.isNotEmpty() && !mentioned && anyTeachers) throw WrongEndpointException()
+        val out = mutableListOf<TeacherLesson>()
+        for ((lo, chunks) in all) {
+            run {
+                val base = baseOf(lo)
+                val repl = replOf(lo)
                 val effective = repl.ifEmpty { base }
-                val mine = teacher.id in effective
-                val replaced = !mine && teacher.id in base
-                if (!mine && !replaced) continue
+                // в «его» расписании сайт может вовсе не указывать преподавателя — тогда все пары его
+                val mine = !mentioned || effective.any(::isHim)
+                val replaced = mentioned && !mine && base.any(::isHim)
+                if (!mine && !replaced) return@run
                 val tc = lo["timeChunks"].arr().orEmpty().mapNotNull { it.int() }
                 val start = tc.firstOrNull()?.let { chunks.getOrNull(it) }?.substringBefore("-")?.trim()
-                    ?.takeIf { it.isNotEmpty() } ?: continue
+                    ?.takeIf { it.isNotEmpty() } ?: return@run
                 val end = tc.lastOrNull()?.let { chunks.getOrNull(it) }?.substringAfterLast("-")?.trim().orEmpty()
-                val wd = lo["weekDayNumber"].int() ?: continue
+                val wd = lo["weekDayNumber"].int() ?: return@run
                 val date = days[wd] ?: monday.plusDays(wd.toLong())
-                out += lessonOf(lo, date, start, end, replaced = replaced, substitute = mine && teacher.id !in base)
+                out += lessonOf(
+                    lo, date, start, end, replaced = replaced,
+                    substitute = mentioned && mine && repl.isNotEmpty() && base.none(::isHim),
+                )
             }
         }
-        // сайт прислал пары, но ни одной — этого преподавателя: значит, запрос понят не так
-        if (total > 0 && out.isEmpty()) throw WrongEndpointException()
         return TeacherWeek(teacher, monday, merge(out), true, now)
     }
 
