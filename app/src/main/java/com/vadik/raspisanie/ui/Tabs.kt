@@ -60,7 +60,7 @@ object Tabs {
     }
 
     /** Варианты формы нижней панели. */
-    val SHAPES = listOf("auto" to "Как в стиле", "rounded" to "Закруглённая", "island" to "Островок")
+    val SHAPES = listOf("island" to "Островок", "rounded" to "Закруглённая", "auto" to "Как в стиле")
 
     /** Вкладки снизу: Расписание, выбранные разделы, «Другое» (и «Настройки» — последними, если выбраны). */
     fun bar(prefs: Prefs): List<String> {
