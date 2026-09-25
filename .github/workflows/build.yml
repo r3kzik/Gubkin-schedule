@@ -71,19 +71,11 @@ jobs:
         if: steps.key.outputs.ok == 'true'
         uses: softprops/action-gh-release@v2
         with:
-<<<<<<< HEAD
-          tag_name: lite-${{ github.run_number }}
-          name: MyGub Lite 2.2.${{ github.run_number }}
-          body: "Лёгкая версия MyGub без стекла и анимаций — для старых и слабых телефонов. Все функции основной версии: замены, подгруппы, ДЗ, карта кампуса, виджеты, автообновление. Ставится рядом с основным приложением. Скачайте **mygub-lite.apk** ниже. Если стояла прежняя Lite 1.0 — удалите её один раз перед установкой (сменился ключ подписи)."
-          files: mygub-lite.apk
-          make_latest: false
-=======
           tag_name: lite-${{ github.run_number }}
           name: MyGub Lite 2.3.${{ github.run_number }}
           body: "Лёгкая версия MyGub без стекла и анимаций — для старых и слабых телефонов. Все функции основной версии 2.3: преподаватели, раздел «Другое», виджет «Домашка», день картинкой, QR-код и автообновление. Ставится рядом с основным приложением. Скачайте **mygub-lite.apk** ниже или обновитесь в приложении: Настройки → Обновления."
           files: mygub-lite.apk
           make_latest: false
->>>>>>> main
 
       - name: Нет ключа — релиз не опубликован
         if: steps.key.outputs.ok != 'true'
