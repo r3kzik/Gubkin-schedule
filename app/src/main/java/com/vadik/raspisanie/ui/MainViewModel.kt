@@ -632,6 +632,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { repo.forgetTeacherProbe() }.invokeOnCompletion { loadTeacherWeek() }
     }
 
+    fun retryTeacherList() {
+        updTeachers { it.copy(listTried = false, all = null) }
+        viewModelScope.launch(Dispatchers.IO) { repo.forgetTeacherProbe() }.invokeOnCompletion {
+            viewModelScope.launch { loadTeachers() }
+        }
+    }
+
     fun teacherThisWeek() {
         updTeachers { it.copy(monday = Repository.mondayOf(LocalDate.now()), week = null) }
         loadTeacherWeek()

@@ -115,22 +115,39 @@ object TeacherParser {
     fun parseTeacherList(text: String): List<Teacher> {
         val root = ScheduleParser.parseRoot(text)
         val out = LinkedHashMap<String, Teacher>()
-        fun walk(el: JsonElement?, depth: Int) {
-            if (el == null || depth > 6) return
+        fun isTeacher(o: JsonObject) = o["id"] != null &&
+            (o["lastName"] != null || o["fio"] != null || o["fullName"] != null)
+        // кафедра «сверху» (если сайт отдаёт список сгруппированным по кафедрам)
+        fun walk(el: JsonElement?, depth: Int, divId: String?, divName: String?) {
+            if (el == null || depth > 7) return
             when (el) {
-                is JsonArray -> el.forEach { item ->
-                    val o = item.obj()
-                    if (o != null && o["id"] != null &&
-                        (o["lastName"] != null || o["fio"] != null || o["fullName"] != null)
-                    ) {
-                        teacherOf(o)?.let { out.putIfAbsent(it.id, it) }
-                    } else walk(item, depth + 1)
+                is JsonArray -> el.forEach { walk(it, depth + 1, divId, divName) }
+                is JsonObject -> if (isTeacher(el)) {
+                    teacherOf(el)?.let { t ->
+                        val withDiv = t.copy(
+                            divisionId = t.divisionId ?: divId,
+                            department = t.department ?: divName,
+                        )
+                        val old = out[t.id]
+                        if (old == null || (old.divisionId == null && withDiv.divisionId != null)) out[t.id] = withDiv
+                    }
+                } else {
+                    val name = el["name"].str()
+                    val isDivision = el["id"] != null && name != null
+                    el.forEach { (k, v) ->
+                        // ключ-число вида "1526": {...} — тоже похоже на кафедру
+                        val keyDiv = k.takeIf { it.all(Char::isDigit) }
+                        walk(
+                            v, depth + 1,
+                            if (isDivision) el["id"].str() else keyDiv ?: divId,
+                            if (isDivision) name else divName,
+                        )
+                    }
                 }
-                is JsonObject -> el.values.forEach { walk(it, depth + 1) }
                 else -> Unit
             }
         }
-        walk(root["rows"] ?: root, 0)
+        walk(root["rows"] ?: root, 0, null, null)
         return out.values.sortedBy { it.searchKey }
     }
 

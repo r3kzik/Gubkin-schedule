@@ -158,7 +158,18 @@ class Storage(private val dir: File) {
 
     fun saveTeacherRaw(text: String) = runCatching { writeAtomic(teacherRaw, text) }
 
-    fun teacherRawFile(): File? = teacherRaw.takeIf { it.exists() }
+    private val teacherListRaw get() = File(dir, "teacher_list_raw.txt")
+
+    fun saveTeacherListRaw(text: String) = runCatching { writeAtomic(teacherListRaw, text) }
+
+    /** Оба журнала (расписание и список преподавателей) в одном файле; null — запросов ещё не было. */
+    fun teacherDiagnostics(): File? {
+        val parts = listOf(teacherRaw, teacherListRaw).filter { it.exists() }
+        if (parts.isEmpty()) return null
+        val out = File(dir, "teacher_diag.txt")
+        runCatching { out.writeText(parts.joinToString("\n\n") { it.readText() }) }
+        return out.takeIf { it.exists() }
+    }
 
     private val teachersFile get() = File(dir, "teachers.json")
 

@@ -132,8 +132,9 @@ class GubkinApi(cookieFile: File) : ScheduleSource {
             "act=schedule&date={d}&teacherId={id}",
         )
         private val TEACHER_LIST = listOf(
+            // так делает сам сайт при загрузке списка преподавателей
+            "act=List&method=getActiveTeachersByDivisionId",
             "act=list&method=getTeachers",
-            "act=list&method=getLecturers",
         )
         private const val UA = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 " +
             "(KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36"

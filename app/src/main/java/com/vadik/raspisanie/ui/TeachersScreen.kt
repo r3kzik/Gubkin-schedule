@@ -126,6 +126,15 @@ fun TeachersScreen(state: UiState, vm: MainViewModel) {
                             else -> "Сайт не отдал общий список — поиск идёт среди преподавателей вашей группы."
                         },
                     )
+                    if (ts.all == null && !ts.loadingList && ts.listTried) {
+                        val ctx = LocalContext.current
+                        Row(Modifier.padding(start = 14.dp, top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            GlassPill("Повторить", selected = true) { vm.retryTeacherList() }
+                            GlassPill("Отправить ответ сайта автору", selected = false) {
+                                shareRaw(ctx, vm.teacherRawFile(), "mygub_teacher_answer.txt", "Отправить ответ сайта")
+                            }
+                        }
+                    }
                 }
             } else {
                 if (results.isEmpty()) item {
