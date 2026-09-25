@@ -20,6 +20,7 @@ import com.vadik.raspisanie.data.SiteException
 import com.vadik.raspisanie.data.WeekSchedule
 import com.vadik.raspisanie.data.UpdateInfo
 import com.vadik.raspisanie.data.Teacher
+import com.vadik.raspisanie.data.Semester
 import com.vadik.raspisanie.data.TeacherWeek
 import com.vadik.raspisanie.security.Integrity
 import com.vadik.raspisanie.work.Updater
@@ -78,6 +79,9 @@ data class LessonDetail(
     val date: LocalDate,
     val lesson: Lesson,
     val history: List<Change> = emptyList(),
+    /** «Лекция № 5 в семестре»; null — ещё считаем или тип пары неизвестен. */
+    val ordinal: String? = null,
+    val ordinalLoading: Boolean = false,
 )
 
 /** Вкладка «Преподаватели». */
@@ -713,11 +717,32 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // ------------------------------------------------------------ карточка пары
 
     fun openLesson(date: LocalDate, lesson: Lesson) {
-        _state.update { it.copy(detail = LessonDetail(date, lesson)) }
+        _state.update { it.copy(detail = LessonDetail(date, lesson, ordinalLoading = !lesson.kind.isNullOrBlank())) }
         viewModelScope.launch {
             val h = withContext(Dispatchers.IO) { repo.historyFor(date, lesson.subject) }
             _state.update { st ->
                 if (st.detail?.lesson == lesson) st.copy(detail = st.detail.copy(history = h)) else st
+            }
+        }
+        val s = _state.value.settings ?: return
+        // номер — только у учебных пар (лекции, семинары, лабораторные), не у мероприятий
+        val kind = lesson.kind?.takeIf { it.isNotBlank() && !it.contains("мероприят", ignoreCase = true) } ?: run {
+            _state.update { st -> if (st.detail?.lesson == lesson) st.copy(detail = st.detail.copy(ordinalLoading = false)) else st }
+            return
+        }
+        viewModelScope.launch {
+            val o = try {
+                withContext(Dispatchers.IO) { repo.lessonOrdinal(s, date, lesson) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                null
+            }
+            val text = o?.let {
+                Semester.label(kind, it.number) + if (it.complete) "" else " (не все прошлые недели загрузились — может быть больше)"
+            }
+            _state.update { st ->
+                if (st.detail?.lesson == lesson) st.copy(detail = st.detail.copy(ordinal = text, ordinalLoading = false)) else st
             }
         }
     }

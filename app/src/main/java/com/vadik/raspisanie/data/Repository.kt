@@ -93,6 +93,41 @@ class Repository(
         }.sortedWith(compareBy({ it.nextDate ?: LocalDate.MAX }, { it.name }))
     }
 
+    // ------------------------------------------------------------ номер пары в семестре
+
+    /** Номер пары и полон ли подсчёт (все ли недели семестра удалось загрузить). */
+    data class Ordinal(val number: Int, val complete: Boolean)
+
+    /**
+     * Какая по счёту эта пара (лекция, семинар…) в семестре. Недостающие прошлые недели
+     * один раз скачиваются с сайта и сохраняются — дальше считается мгновенно.
+     */
+    fun lessonOrdinal(settings: Settings, date: LocalDate, lesson: Lesson, pause: (Long) -> Unit = { Thread.sleep(it) }): Ordinal? {
+        if (lesson.kind.isNullOrBlank()) return null
+        val weeks = mutableListOf<WeekSchedule>()
+        var complete = true
+        var fetched = 0
+        for (m in Semester.mondays(date)) {
+            val cached = storage.loadWeek(settings.groupId, m)
+            if (cached != null) {
+                weeks += cached
+                continue
+            }
+            if (!complete) continue // сайт уже отказал — остальные не дёргаем
+            try {
+                if (fetched > 0) pause(700) // не частим запросами
+                val text = source.weekJson(m, settings.groupId)
+                val w = ScheduleParser.parseWeek(text, settings.groupId, m, clock(), settings.groupName)
+                storage.saveWeek(w)
+                weeks += w
+                fetched++
+            } catch (e: Exception) {
+                complete = false
+            }
+        }
+        return Ordinal(Semester.ordinal(weeks, date, lesson, storage.loadPrefs()), complete)
+    }
+
     // ------------------------------------------------------------ преподаватели
 
     /** Преподаватели своей группы — из сохранённых недель, работает и без сети. */
