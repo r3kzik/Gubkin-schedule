@@ -36,6 +36,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -188,10 +190,26 @@ private fun TeacherDetail(ts: TeachersState, vm: MainViewModel) {
     val cs = MaterialTheme.colorScheme
     val w = ts.week
     val thisWeek = ts.monday == com.vadik.raspisanie.data.Repository.mondayOf(LocalDate.now())
+    val listState = rememberLazyListState()
+    // на текущей неделе сразу прокручиваем к сегодняшнему дню (или ближайшему следующему с парами)
+    LaunchedEffect(w) {
+        if (w == null || !thisWeek) return@LaunchedEffect
+        val today = LocalDate.now()
+        var idx = 2 // карточка преподавателя + выбор недели
+        if (!w.full) idx++
+        if (ts.error != null) idx++
+        var target = -1
+        for ((date, list) in w.lessons.groupBy { it.date }.toSortedMap()) {
+            if (date >= today) { target = idx; break }
+            idx += 1 + list.size
+        }
+        if (target > 2) listState.animateScrollToItem(target)
+    }
     Column(Modifier.fillMaxSize()) {
         GlassTopBar(t.shortName, onBack = { vm.closeTeacher() })
         LazyColumn(
             Modifier.fillMaxSize().fadeEdges(40f, 70f),
+            state = listState,
             contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 40.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {

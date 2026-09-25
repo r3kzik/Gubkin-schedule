@@ -124,8 +124,8 @@ data class UiState(
     val prefs: Prefs = Prefs(),
     val showSettings: Boolean = false,
     val detail: LessonDetail? = null,
-    /** 0 — расписание, 1 — предметы, 2 — преподаватели, 3 — карта, 4 — настройки. */
-    val tab: Int = 0,
+    /** Открытый раздел — см. [Tabs]. */
+    val tab: String = Tabs.SCHEDULE,
     val showThemeEditor: Boolean = false,
     val homework: List<Homework> = emptyList(),
     val subjects: List<SubjectInfo> = emptyList(),
@@ -437,25 +437,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // ------------------------------------------------------------ настройки
 
-    fun openSettings() = selectTab(TAB_SETTINGS)
+    fun openSettings() = selectTab(Tabs.SETTINGS)
 
     /** Показать аудиторию на карте кампуса. */
     fun showOnMap(room: String?) {
         val loc = Campus.locate(room) ?: return
-        _state.update { it.copy(mapFocus = loc, mapFocusSeq = it.mapFocusSeq + 1, tab = TAB_MAP, detail = null) }
+        _state.update { it.copy(mapFocus = loc, mapFocusSeq = it.mapFocusSeq + 1, tab = Tabs.MAP, detail = null) }
     }
 
     /** Показать здание на карте (из списка мест). */
     fun showBuildingOnMap(buildingId: String) {
         val loc = RoomLocation(Campus.building(buildingId), null, "")
-        _state.update { it.copy(mapFocus = loc, mapFocusSeq = it.mapFocusSeq + 1, tab = TAB_MAP) }
+        _state.update { it.copy(mapFocus = loc, mapFocusSeq = it.mapFocusSeq + 1, tab = Tabs.MAP) }
     }
-    fun closeSettings() = selectTab(0)
+    fun closeSettings() = selectTab(Tabs.SCHEDULE)
 
-    fun selectTab(i: Int) {
-        _state.update { it.copy(tab = i) }
-        if (i == TAB_SUBJECTS) loadSubjects()
-        if (i == TAB_TEACHERS) loadTeachers()
+    fun selectTab(id: String) {
+        _state.update { it.copy(tab = id) }
+        if (id == Tabs.SUBJECTS) loadSubjects()
+        if (id == Tabs.TEACHERS) loadTeachers()
+    }
+
+    /** Показать раздел на нижней панели или убрать. false — уже выбрано максимум. */
+    fun setBottomTab(id: String, on: Boolean): Boolean {
+        val cur = _state.value.prefs.bottomTabs.filter { it in Tabs.OPTIONAL }
+        if (on && id !in cur && cur.size >= Tabs.MAX_EXTRA) return false
+        updatePrefs { p -> p.copy(bottomTabs = if (on) (cur + id).distinct() else cur - id) }
+        return true
     }
 
     fun openThemeEditor() = _state.update { it.copy(showThemeEditor = true) }
@@ -571,7 +579,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Из карточки пары: сразу расписание этого преподавателя. */
     fun openTeacherFromLesson(t: Teacher) {
-        _state.update { it.copy(detail = null, tab = TAB_TEACHERS) }
+        _state.update { it.copy(detail = null, tab = Tabs.TEACHERS) }
         loadTeachers()
         openTeacher(t)
     }
@@ -760,10 +768,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     companion object {
-        const val TAB_SUBJECTS = 1
-        const val TAB_TEACHERS = 2
-        const val TAB_MAP = 3
-        const val TAB_SETTINGS = 4
         private const val STALE_MS = 30 * 60 * 1000L // 30 минут
     }
 }

@@ -116,13 +116,6 @@ private val DM_HM: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM в HH:
 
 private enum class Screen(val depth: Int) { Loading(0), Onboarding(0), Main(0), Picker(1), ThemeEditor(1), Detail(2) }
 
-private val TABS = listOf(
-    TabItem("Расписание", Icons.Filled.DateRange),
-    TabItem("Предметы", Icons.Filled.Edit),
-    TabItem("Преподы", Icons.Filled.Person),
-    TabItem("Карта", Icons.Filled.Place),
-    TabItem("Настройки", Icons.Filled.Settings),
-)
 
 @Composable
 fun AppRoot(state: UiState, vm: MainViewModel) {
@@ -189,13 +182,16 @@ fun AppRoot(state: UiState, vm: MainViewModel) {
 /** Три вкладки с нижней панелью; содержимое меняется с лёгким сдвигом. */
 @Composable
 private fun MainTabs(state: UiState, vm: MainViewModel) {
-    BackHandler(enabled = state.tab != 0) { vm.selectTab(0) }
+    val bar = Tabs.bar(state.prefs)
+    val onBar = state.tab in bar
+    // из раздела, открытого через «Другое», назад — в «Другое»
+    BackHandler(enabled = state.tab != Tabs.SCHEDULE) { vm.selectTab(if (onBar) Tabs.SCHEDULE else Tabs.MORE) }
     Column(Modifier.fillMaxSize()) {
         AnimatedContent(
             targetState = state.tab,
             transitionSpec = {
                 if (Edition.lite) return@AnimatedContent EnterTransition.None togetherWith ExitTransition.None
-                val dir = if (targetState > initialState) 1 else -1
+                val dir = if (Tabs.order(targetState) > Tabs.order(initialState)) 1 else -1
                 (slideInHorizontally(tween(300)) { dir * it / 5 } + fadeIn(tween(300))) togetherWith
                     (slideOutHorizontally(tween(300)) { -dir * it / 5 } + fadeOut(tween(150)))
             },
@@ -203,14 +199,18 @@ private fun MainTabs(state: UiState, vm: MainViewModel) {
             label = "tab",
         ) { t ->
             when (t) {
-                MainViewModel.TAB_SUBJECTS -> SubjectsScreen(state, vm)
-                MainViewModel.TAB_TEACHERS -> TeachersScreen(state, vm)
-                MainViewModel.TAB_MAP -> MapScreen(state, vm)
-                MainViewModel.TAB_SETTINGS -> SettingsScreen(state, vm)
+                Tabs.SUBJECTS -> SubjectsScreen(state, vm)
+                Tabs.TEACHERS -> TeachersScreen(state, vm)
+                Tabs.MAP -> MapScreen(state, vm)
+                Tabs.SETTINGS -> SettingsScreen(state, vm)
+                Tabs.MORE -> MoreScreen(state, vm)
                 else -> ScheduleScreen(state, vm)
             }
         }
-        StyledTabBar(TABS, state.tab) { vm.selectTab(it) }
+        StyledTabBar(
+            bar.map { TabItem(Tabs.title(it), Tabs.icon(it)) },
+            bar.indexOf(if (onBar) state.tab else Tabs.MORE),
+        ) { vm.selectTab(bar[it]) }
     }
 }
 

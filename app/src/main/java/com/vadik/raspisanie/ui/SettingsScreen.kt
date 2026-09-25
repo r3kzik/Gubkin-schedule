@@ -85,6 +85,11 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
                     "Редактор темы",
                     "${STYLES.firstOrNull { it.id == prefs.style }?.title ?: "Стиль"} · цвет, скругление, иконка",
                 ) { vm.openThemeEditor() }
+                Divider()
+                NavRow(
+                    "Нижняя панель",
+                    Tabs.bar(prefs).joinToString(" · ") { Tabs.title(it) },
+                ) { vm.selectTab(Tabs.MORE) }
             }
 
             // ---------------- группа
