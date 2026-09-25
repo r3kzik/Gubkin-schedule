@@ -65,7 +65,7 @@ import kotlin.math.roundToInt
 fun ThemeEditorScreen(state: UiState, vm: MainViewModel) {
     val prefs = state.prefs
     val cs = MaterialTheme.colorScheme
-    val glassy = prefs.style == "glass" || prefs.style == "night" || prefs.style == "gradient"
+    val glassy = prefs.style in GLASSY_STYLES
     Column(Modifier.fillMaxSize()) {
         GlassTopBar("Редактор темы", onBack = { vm.closeThemeEditor() })
         Column(
@@ -84,15 +84,57 @@ fun ThemeEditorScreen(state: UiState, vm: MainViewModel) {
             // ---------------- стиль
             SectionTitle("Стиль")
             if (Edition.lite) Hint("В MyGub Lite — стили без стекла и анимаций, чтобы всё летало даже на старом телефоне.")
-            STYLES.filter { !Edition.lite || it.id in Edition.LITE_STYLES }.chunked(2).forEach { row ->
-                Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    row.forEach { st ->
-                        StyleTile(
-                            st,
-                            prefs,
-                            selected = prefs.style == st.id,
-                            modifier = Modifier.weight(1f),
-                        ) { vm.updatePrefs { it.copy(style = st.id) } }
+            // все стили спрятаны под стрелочку: видно только текущий, по нажатию раскрывается сетка превью
+            var stylesOpen by rememberSaveable { mutableStateOf(false) }
+            val styleArrow by animateFloatAsState(if (stylesOpen) 180f else 0f, tween(250), label = "styleArrow")
+            val currentStyle = STYLES.firstOrNull { it.id == prefs.style } ?: STYLES.first()
+            SettingsCard {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { stylesOpen = !stylesOpen }
+                        .padding(horizontal = 18.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(currentStyle.title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                        Text(
+                            if (stylesOpen) "Нажмите, чтобы свернуть" else currentStyle.description,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        "${STYLES.count { !Edition.lite || it.id in Edition.LITE_STYLES }} стилей",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Icon(
+                        Icons.Filled.KeyboardArrowDown,
+                        contentDescription = if (stylesOpen) "Свернуть" else "Показать все стили",
+                        modifier = Modifier.graphicsLayer { rotationZ = styleArrow },
+                    )
+                }
+            }
+            AnimatedVisibility(
+                visible = stylesOpen,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
+            ) {
+                Column(Modifier.padding(top = 10.dp)) {
+                    STYLES.filter { !Edition.lite || it.id in Edition.LITE_STYLES }.chunked(2).forEach { row ->
+                        Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            row.forEach { st ->
+                                StyleTile(
+                                    st,
+                                    prefs,
+                                    selected = prefs.style == st.id,
+                                    modifier = Modifier.weight(1f),
+                                ) { vm.updatePrefs { it.copy(style = st.id) } }
+                            }
+                            if (row.size == 1) Spacer(Modifier.weight(1f))
+                        }
                     }
                 }
             }
@@ -100,6 +142,9 @@ fun ThemeEditorScreen(state: UiState, vm: MainViewModel) {
             // ---------------- цвет
             SectionTitle("Цвет")
             SettingsCard {
+                if (prefs.style in FIXED_PALETTE_STYLES) {
+                    Hint("У стиля «${currentStyle.title}» своя палитра — выбранный цвет применяется к иконке приложения и виджетам.")
+                }
                 // все цвета спрятаны под стрелочку: видно только текущий, по нажатию раскрываются
                 var colorsOpen by rememberSaveable { mutableStateOf(false) }
                 val arrow by animateFloatAsState(if (colorsOpen) 180f else 0f, tween(250), label = "arrow")

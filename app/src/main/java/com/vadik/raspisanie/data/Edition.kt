@@ -13,7 +13,7 @@ object Edition {
         private set
 
     /** Стили без полупрозрачного стекла — только они доступны в Lite. */
-    val LITE_STYLES = setOf("material", "ios", "amoled", "paper")
+    val LITE_STYLES = setOf("material", "ios", "amoled", "paper", "catppuccin", "nord", "mono")
 
     fun init(ctx: Context) {
         lite = ctx.packageName.endsWith(".lite")

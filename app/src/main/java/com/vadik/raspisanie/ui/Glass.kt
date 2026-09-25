@@ -299,7 +299,7 @@ fun StyledTabBar(items: List<TabItem>, selected: Int, shape: String = "auto", on
     // «auto» — как задумано стилем: у Material / iOS / Бумаги — панель во всю ширину, у стеклянных — островок
     val mode = when (shape) {
         "rounded", "island", "flat" -> shape
-        else -> if (g.style == "material" || g.style == "ios" || g.style == "paper") "flat" else "island"
+        else -> if (g.style == "material" || g.style == "ios" || g.style == "paper" || g.style == "mono") "flat" else "island"
     }
     val top = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
     when {
