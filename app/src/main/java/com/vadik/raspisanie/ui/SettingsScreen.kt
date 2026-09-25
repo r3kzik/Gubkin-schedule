@@ -454,7 +454,7 @@ private fun AboutCard(ctx: Context) {
 
 internal fun shareRaw(ctx: Context, raw: File?, name: String = "raspisanie_data.json", title: String = "Отправить данные расписания") {
     if (raw == null) {
-        Toast.makeText(ctx, "Данных пока нет — сначала обновите расписание", Toast.LENGTH_SHORT).show()
+        Toast.makeText(ctx, "Данных пока нет — сначала загрузите расписание (или откройте преподавателя ещё раз)", Toast.LENGTH_SHORT).show()
         return
     }
     try {

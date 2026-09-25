@@ -45,6 +45,8 @@ data class TeacherWeek(
     /** true — полное расписание с сайта; false — только пары вашей группы из сохранённых недель. */
     val full: Boolean,
     val fetchedAt: Long,
+    /** Почему показано не полное расписание (для пояснения на экране). */
+    val note: String? = null,
 ) {
     fun on(date: LocalDate) = lessons.filter { it.date == date }.sortedBy { timeKey(it.start) }
 }

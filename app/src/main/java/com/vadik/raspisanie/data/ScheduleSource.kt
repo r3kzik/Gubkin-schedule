@@ -16,5 +16,8 @@ interface ScheduleSource {
     fun teachersJson(variant: Int): String = throw UnsupportedOperationException()
 
     val teacherWeekVariants: Int get() = 0
+
+    /** Адрес последнего запроса к сайту — для диагностики. */
+    val lastRequestUrl: String? get() = null
     val teacherListVariants: Int get() = 0
 }

@@ -155,27 +155,42 @@ class Repository(
     fun teacherWeek(teacher: Teacher, date: LocalDate, settings: Settings): TeacherWeek {
         val monday = mondayOf(date)
         var networkFailed = false
-        for (v in variantsToTry(WEEK_KEY, source.teacherWeekVariants)) {
-            try {
-                val text = source.teacherWeekJson(monday, teacher.id, teacher.divisionId, v)
-                storage.saveTeacherRaw("вариант $v, ${teacher.fullName} (${teacher.id}, кафедра ${teacher.divisionId})\n$text")
-                val w = TeacherParser.parseWeek(text, teacher, monday, clock())
-                remember(WEEK_KEY, v)
-                return w
-            } catch (e: CaptchaRequiredException) {
-                throw e
-            } catch (e: java.io.IOException) {
-                networkFailed = true
-                break
-            } catch (e: Exception) {
-                // адрес не подошёл — запишем почему, для диагностики
-                if (e !is WrongEndpointException) {
-                    storage.saveTeacherRaw("вариант $v, ${teacher.fullName}: ошибка ${e.javaClass.simpleName}: ${e.message}")
+        // журнал для кнопки «Отправить ответ сайта автору»: адрес, ответ или ошибка по каждому варианту
+        val log = StringBuilder("MyGub: ${teacher.fullName} (id ${teacher.id}, кафедра ${teacher.divisionId}), неделя $monday\n")
+        val variants = variantsToTry(WEEK_KEY, source.teacherWeekVariants)
+        if (variants.isEmpty()) log.append("Адреса сайта недавно не подошли — повторная попытка позже (или кнопка «Повторить»).\n")
+        try {
+            for (v in variants) {
+                log.append("\n=== вариант $v ===\n")
+                try {
+                    val text = source.teacherWeekJson(monday, teacher.id, teacher.divisionId, v)
+                    log.append(source.lastRequestUrl ?: "").append("\n").append(text.take(200_000)).append("\n")
+                    val w = TeacherParser.parseWeek(text, teacher, monday, clock())
+                    log.append("→ принято: пар ${w.lessons.size}\n")
+                    remember(WEEK_KEY, v)
+                    return w
+                } catch (e: CaptchaRequiredException) {
+                    log.append(source.lastRequestUrl ?: "").append("\n→ сайт просит капчу\n")
+                    throw e
+                } catch (e: java.io.IOException) {
+                    log.append(source.lastRequestUrl ?: "").append("\n→ нет ответа: ${e.javaClass.simpleName}: ${e.message}\n")
+                    networkFailed = true
+                    break
+                } catch (e: WrongEndpointException) {
+                    log.append("→ в ответе нет пар этого преподавателя\n")
+                } catch (e: Exception) {
+                    log.append(source.lastRequestUrl ?: "").append("\n→ ошибка ${e.javaClass.simpleName}: ${e.message}\n")
                 }
             }
+        } finally {
+            storage.saveTeacherRaw(log.toString())
         }
         if (!networkFailed && storage.loadProbe()[WEEK_KEY]?.let { it >= 0 } != true) remember(WEEK_KEY, -1)
         return TeacherParser.fromWeeks(storage.allWeeks(settings.groupId), teacher, monday, settings.groupName, clock())
+            .copy(
+                note = if (networkFailed) "Сайт вуза не ответил вовремя — пока показаны пары из расписания вашей группы."
+                else "Сайт не отдал полное расписание преподавателя — показаны только пары из расписания вашей группы.",
+            )
     }
 
     fun faculties(): List<Faculty> = ScheduleParser.parseFaculties(source.facultiesJson())

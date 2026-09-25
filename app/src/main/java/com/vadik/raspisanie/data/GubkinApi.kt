@@ -24,8 +24,8 @@ class GubkinApi(cookieFile: File) : ScheduleSource {
     private val client = OkHttpClient.Builder()
         .cookieJar(cookieJar)
         .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(25, TimeUnit.SECONDS)
-        .callTimeout(40, TimeUnit.SECONDS)
+        .readTimeout(40, TimeUnit.SECONDS)
+        .callTimeout(60, TimeUnit.SECONDS)
         .build()
 
     private fun request(path: String): Request.Builder = Request.Builder()
@@ -41,7 +41,12 @@ class GubkinApi(cookieFile: File) : ScheduleSource {
     }
 
     /** GET к API с одной повторной попыткой после нового «визита», если сессия протухла. */
+    @Volatile
+    private var lastUrl: String? = null
+    override val lastRequestUrl: String? get() = lastUrl
+
     private fun apiGet(path: String): String {
+        lastUrl = BASE + path
         visit(force = false)
         var attempt = 0
         while (true) {

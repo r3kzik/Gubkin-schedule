@@ -209,7 +209,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val monday = Repository.mondayOf(date)
             if (_state.value.monday != monday) return@launch // пока читали, пользователь ушёл на другую неделю
             _state.update { it.copy(week = cached, error = null) }
-            if (cached == null || isStale(cached)) refresh()
+            if (cached == null || isStale(cached)) autoRefresh()
         }
     }
 
@@ -232,7 +232,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         val st = _state.value
         val w = st.week
-        if (st.settings != null && (w == null || isStale(w))) refresh()
+        if (st.settings != null && (w == null || isStale(w))) autoRefresh()
+    }
+
+    /** Когда последний раз сами пытались обновить неделю (понедельник → время). */
+    private val autoAttempts = mutableMapOf<LocalDate, Long>()
+
+    /**
+     * Автоматическое обновление — не чаще раза в [AUTO_RETRY_MS] для одной недели, даже если прошлая попытка
+     * не удалась (капча, сайт не ответил). Иначе каждое сворачивание/разворачивание дёргало бы сайт.
+     */
+    private fun autoRefresh() {
+        val monday = _state.value.monday
+        val now = System.currentTimeMillis()
+        if (now - (autoAttempts[monday] ?: 0L) < AUTO_RETRY_MS) return
+        autoAttempts[monday] = now
+        refresh(manual = false)
     }
 
     /**
@@ -793,5 +808,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     companion object {
         /** Автообновление при открытии — не чаще раза в 3 часа (частые запросы злят сайт и вызывают капчу). */
         private const val STALE_MS = 3 * 60 * 60 * 1000L
+        /** Повторная автоматическая попытка после неудачи — не раньше чем через 30 минут. */
+        private const val AUTO_RETRY_MS = 30 * 60 * 1000L
     }
 }

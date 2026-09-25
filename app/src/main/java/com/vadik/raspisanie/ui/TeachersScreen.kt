@@ -254,7 +254,7 @@ private fun TeacherDetail(ts: TeachersState, vm: MainViewModel) {
                 GlassCard(Modifier.fillMaxWidth(), shape = skinShape(22), tint = cs.tertiary.copy(alpha = 0.14f)) {
                     Column(Modifier.padding(14.dp)) {
                         Text(
-                            "Сайт не отдал полное расписание преподавателя — показаны только пары из расписания вашей группы.",
+                            w.note ?: "Сайт не отдал полное расписание преподавателя — показаны только пары из расписания вашей группы.",
                             style = MaterialTheme.typography.bodySmall,
                         )
                         Spacer(Modifier.height(8.dp))
