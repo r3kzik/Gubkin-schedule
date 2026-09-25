@@ -44,6 +44,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -95,6 +100,56 @@ fun ThemeEditorScreen(state: UiState, vm: MainViewModel) {
             // ---------------- цвет
             SectionTitle("Цвет")
             SettingsCard {
+                // все цвета спрятаны под стрелочку: видно только текущий, по нажатию раскрываются
+                var colorsOpen by rememberSaveable { mutableStateOf(false) }
+                val arrow by animateFloatAsState(if (colorsOpen) 180f else 0f, tween(250), label = "arrow")
+                val current = (Accents.presets + Accents.dark + Accents.pantone).firstOrNull { it.id == prefs.accent }
+                val rainbow = Brush.sweepGradient(
+                    listOf(
+                        Color(0xFFFF5A5F), Color(0xFFF5B301), Color(0xFF22B573),
+                        Color(0xFF2FA8F5), Color(0xFF7C5CFF), Color(0xFFFF5A5F),
+                    ),
+                )
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { colorsOpen = !colorsOpen }
+                        .padding(horizontal = 18.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(current?.let { Brush.linearGradient(listOf(Color(it.seed), Color(it.seed).copy(alpha = 0.8f))) } ?: rainbow)
+                            .border(1.dp, Color.White.copy(alpha = 0.5f), CircleShape),
+                    )
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            current?.title ?: "Цвета обоев",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium,
+                        )
+                        Text(
+                            if (colorsOpen) "Нажмите, чтобы свернуть" else "Все цвета — нажмите, чтобы выбрать",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Icon(
+                        Icons.Filled.KeyboardArrowDown,
+                        contentDescription = if (colorsOpen) "Свернуть" else "Показать все цвета",
+                        modifier = Modifier.graphicsLayer { rotationZ = arrow },
+                    )
+                }
+                AnimatedVisibility(
+                    visible = colorsOpen,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically(),
+                ) {
+                Column {
+                Divider()
                 FlowRow(
                     Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -152,6 +207,8 @@ fun ThemeEditorScreen(state: UiState, vm: MainViewModel) {
                             label = a.title.substringBefore(" ·"),
                         ) { vm.updatePrefs { it.copy(accent = a.id) } }
                     }
+                }
+                }
                 }
                 Accents.pantone.firstOrNull { it.id == prefs.accent }?.let {
                     Hint("Выбран: ${it.title.substringAfter("· ")} — цвет года Pantone ${it.title.substringBefore(" ·")}")
