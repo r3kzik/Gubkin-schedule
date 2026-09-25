@@ -245,10 +245,9 @@ class Storage(private val dir: File) {
         cleanup(w.groupId)
     }
 
-    /** Удаляем недели прошлых семестров (но не моложе двух месяцев), чтобы файлы не копились. */
+    /** Удаляем недели старше двух месяцев, чтобы файлы не копились. */
     private fun cleanup(groupId: String) {
-        val now = LocalDate.now()
-        val border = minOf(now.minusWeeks(8), Semester.start(now).minusWeeks(1))
+        val border = LocalDate.now().minusWeeks(8)
         dir.listFiles()?.forEach { f ->
             val m = Regex("""week_(.+)_(\d{4}-\d{2}-\d{2})\.json""").matchEntire(f.name)
                 ?: return@forEach

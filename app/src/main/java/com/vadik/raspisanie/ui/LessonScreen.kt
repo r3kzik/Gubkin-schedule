@@ -115,10 +115,6 @@ fun LessonScreen(detail: LessonDetail, state: UiState, vm: MainViewModel, onBack
                     "${DAY_FULL_NAMES[date.dayOfWeek.value - 1]}, ${date.format(D_M)} · " +
                         if (l.end.isNotBlank()) "${l.start}–${l.end}" else l.start,
                 )
-                when {
-                    detail.ordinal != null -> InfoLine("По счёту", detail.ordinal)
-                    detail.ordinalLoading -> InfoLine("По счёту", "считаю с начала семестра…")
-                }
                 InfoLine(
                     if (l.roomChanged) "Аудитория · замена" else "Аудитория",
                     l.room ?: "не указана",
