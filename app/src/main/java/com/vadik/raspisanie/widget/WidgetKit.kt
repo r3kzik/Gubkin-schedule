@@ -64,8 +64,15 @@ object WidgetKit {
         views.setInt(R.id.widget_bg, "setImageAlpha", (opacityPercent.coerceIn(0, 100) * 255) / 100)
     }
 
-    fun openApp(ctx: Context): PendingIntent = PendingIntent.getActivity(
-        ctx, 1, Intent(ctx, MainActivity::class.java),
+    /** Открыть приложение; [tab] — сразу нужный раздел (например, «subjects»). */
+    fun openApp(ctx: Context, tab: String? = null): PendingIntent = PendingIntent.getActivity(
+        ctx, if (tab == null) 1 else 1 + tab.hashCode().and(0xFFFF),
+        Intent(ctx, MainActivity::class.java).apply {
+            tab?.let {
+                putExtra(MainActivity.EXTRA_TAB, it)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            }
+        },
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
 
@@ -136,6 +143,7 @@ object WidgetKit {
         NextLessonWidget::class.java,
         CompactDayWidget::class.java,
         StripWidget::class.java,
+        HomeworkWidget::class.java,
     )
 
     fun updateAll(ctx: Context) {
@@ -148,6 +156,7 @@ object WidgetKit {
                 NextLessonWidget::class.java -> manager.updateAppWidget(ids, NextLessonWidget.build(ctx))
                 CompactDayWidget::class.java -> manager.updateAppWidget(ids, CompactDayWidget.build(ctx))
                 StripWidget::class.java -> manager.updateAppWidget(ids, StripWidget.build(ctx))
+                HomeworkWidget::class.java -> manager.updateAppWidget(ids, HomeworkWidget.build(ctx))
             }
         }
         scheduleTick(ctx)

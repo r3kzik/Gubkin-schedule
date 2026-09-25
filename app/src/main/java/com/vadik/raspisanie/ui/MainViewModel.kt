@@ -19,6 +19,8 @@ import com.vadik.raspisanie.data.Settings
 import com.vadik.raspisanie.data.SiteException
 import com.vadik.raspisanie.data.WeekSchedule
 import com.vadik.raspisanie.data.UpdateInfo
+import com.vadik.raspisanie.data.Teacher
+import com.vadik.raspisanie.data.TeacherWeek
 import com.vadik.raspisanie.security.Integrity
 import com.vadik.raspisanie.work.Updater
 import com.vadik.raspisanie.work.AppSync
@@ -78,6 +80,22 @@ data class LessonDetail(
     val history: List<Change> = emptyList(),
 )
 
+/** Вкладка «Преподаватели». */
+data class TeachersState(
+    val query: String = "",
+    /** Преподаватели своей группы (из сохранённого расписания). */
+    val mine: List<Teacher> = emptyList(),
+    /** Все преподаватели вуза с сайта; null — список ещё не загружен или сайт его не отдаёт. */
+    val all: List<Teacher>? = null,
+    val loadingList: Boolean = false,
+    val listTried: Boolean = false,
+    val selected: Teacher? = null,
+    val monday: LocalDate = Repository.mondayOf(LocalDate.now()),
+    val week: TeacherWeek? = null,
+    val loadingWeek: Boolean = false,
+    val error: String? = null,
+)
+
 /** Автообновление приложения. */
 data class UpdateState(
     val info: UpdateInfo? = null,
@@ -106,8 +124,8 @@ data class UiState(
     val prefs: Prefs = Prefs(),
     val showSettings: Boolean = false,
     val detail: LessonDetail? = null,
-    /** 0 — расписание, 1 — предметы, 2 — карта, 3 — настройки. */
-    val tab: Int = 0,
+    /** Открытый раздел — см. [Tabs]. */
+    val tab: String = Tabs.SCHEDULE,
     val showThemeEditor: Boolean = false,
     val homework: List<Homework> = emptyList(),
     val subjects: List<SubjectInfo> = emptyList(),
@@ -118,6 +136,7 @@ data class UiState(
     /** Счётчик, чтобы повторный показ того же места снова запускал анимацию. */
     val mapFocusSeq: Int = 0,
     val update: UpdateState = UpdateState(),
+    val teachers: TeachersState = TeachersState(),
     /** Приложение подписано чужим ключом — это не оригинальный MyGub. */
     val tampered: Boolean = false,
 ) {
@@ -418,24 +437,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // ------------------------------------------------------------ настройки
 
-    fun openSettings() = selectTab(3)
+    fun openSettings() = selectTab(Tabs.SETTINGS)
 
     /** Показать аудиторию на карте кампуса. */
     fun showOnMap(room: String?) {
         val loc = Campus.locate(room) ?: return
-        _state.update { it.copy(mapFocus = loc, mapFocusSeq = it.mapFocusSeq + 1, tab = 2, detail = null) }
+        _state.update { it.copy(mapFocus = loc, mapFocusSeq = it.mapFocusSeq + 1, tab = Tabs.MAP, detail = null) }
     }
 
     /** Показать здание на карте (из списка мест). */
     fun showBuildingOnMap(buildingId: String) {
         val loc = RoomLocation(Campus.building(buildingId), null, "")
-        _state.update { it.copy(mapFocus = loc, mapFocusSeq = it.mapFocusSeq + 1, tab = 2) }
+        _state.update { it.copy(mapFocus = loc, mapFocusSeq = it.mapFocusSeq + 1, tab = Tabs.MAP) }
     }
-    fun closeSettings() = selectTab(0)
+    fun closeSettings() = selectTab(Tabs.SCHEDULE)
 
-    fun selectTab(i: Int) {
-        _state.update { it.copy(tab = i) }
-        if (i == 1) loadSubjects()
+    fun selectTab(id: String) {
+        _state.update { it.copy(tab = id) }
+        if (id == Tabs.SUBJECTS) loadSubjects()
+        if (id == Tabs.TEACHERS) loadTeachers()
+    }
+
+    /** Показать раздел на нижней панели или убрать. false — уже выбрано максимум. */
+    fun setBottomTab(id: String, on: Boolean): Boolean {
+        val cur = _state.value.prefs.bottomTabs.filter { it in Tabs.OPTIONAL }
+        if (on && id !in cur && cur.size >= Tabs.MAX_EXTRA) return false
+        updatePrefs { p -> p.copy(bottomTabs = if (on) (cur + id).distinct() else cur - id) }
+        return true
     }
 
     fun openThemeEditor() = _state.update { it.copy(showThemeEditor = true) }
@@ -488,7 +516,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
         _state.update { it.copy(hwDraft = null) }
         viewModelScope.launch {
-            val list = withContext(Dispatchers.IO) { repo.upsertHomework(h) }
+            val list = withContext(Dispatchers.IO) { repo.upsertHomework(h).also { homeworkChanged() } }
             _state.update { it.copy(homework = list) }
         }
     }
@@ -496,12 +524,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleHomework(h: Homework) {
         val upd = h.copy(done = !h.done)
         _state.update { st -> st.copy(homework = st.homework.map { if (it.id == h.id) upd else it }) }
-        viewModelScope.launch(Dispatchers.IO) { repo.upsertHomework(upd) }
+        viewModelScope.launch(Dispatchers.IO) { repo.upsertHomework(upd); homeworkChanged() }
     }
 
     fun deleteHomework(id: String) {
         _state.update { st -> st.copy(homework = st.homework.filter { it.id != id }, hwDraft = null) }
-        viewModelScope.launch(Dispatchers.IO) { repo.deleteHomework(id) }
+        viewModelScope.launch(Dispatchers.IO) { repo.deleteHomework(id); homeworkChanged() }
     }
 
     fun updatePrefs(change: (Prefs) -> Prefs) {
@@ -514,6 +542,91 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun rawFile() = repo.rawFile()
+
+    /** Виджет «Домашка» показывает свежий список. */
+    private fun homeworkChanged() {
+        runCatching { com.vadik.raspisanie.widget.WidgetKit.updateAll(app) }
+    }
+
+    // ------------------------------------------------------------ преподаватели
+
+    private var teacherJob: Job? = null
+
+    private fun updTeachers(f: (TeachersState) -> TeachersState) = _state.update { it.copy(teachers = f(it.teachers)) }
+
+    fun loadTeachers() {
+        val s = _state.value.settings ?: return
+        viewModelScope.launch {
+            val mine = withContext(Dispatchers.IO) { repo.myTeachers(s.groupId) }
+            updTeachers { it.copy(mine = mine) }
+        }
+        val t = _state.value.teachers
+        if (t.all != null || t.loadingList || t.listTried) return
+        updTeachers { it.copy(loadingList = true) }
+        viewModelScope.launch {
+            val all = try {
+                withContext(Dispatchers.IO) { repo.allTeachers() }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                null // без полного списка ищем среди преподавателей своей группы
+            }
+            updTeachers { it.copy(all = all, loadingList = false, listTried = true) }
+        }
+    }
+
+    fun setTeacherQuery(q: String) = updTeachers { it.copy(query = q) }
+
+    fun openTeacher(t: Teacher) {
+        updTeachers { it.copy(selected = t, week = null, error = null, monday = Repository.mondayOf(LocalDate.now())) }
+        loadTeacherWeek()
+    }
+
+    /** Из карточки пары: сразу расписание этого преподавателя. */
+    fun openTeacherFromLesson(t: Teacher) {
+        _state.update { it.copy(detail = null, tab = Tabs.TEACHERS) }
+        loadTeachers()
+        openTeacher(t)
+    }
+
+    fun closeTeacher() {
+        teacherJob?.cancel()
+        updTeachers { it.copy(selected = null, week = null, loadingWeek = false, error = null) }
+    }
+
+    fun teacherShiftWeek(weeks: Long) {
+        updTeachers { it.copy(monday = it.monday.plusWeeks(weeks), week = null) }
+        loadTeacherWeek()
+    }
+
+    fun teacherThisWeek() {
+        updTeachers { it.copy(monday = Repository.mondayOf(LocalDate.now()), week = null) }
+        loadTeacherWeek()
+    }
+
+    fun loadTeacherWeek() {
+        val s = _state.value.settings ?: return
+        val t = _state.value.teachers.selected ?: return
+        val monday = _state.value.teachers.monday
+        teacherJob?.cancel()
+        teacherJob = viewModelScope.launch {
+            updTeachers { it.copy(loadingWeek = true, error = null) }
+            try {
+                val w = withContext(Dispatchers.IO) { repo.teacherWeek(t, monday, s) }
+                updTeachers {
+                    if (it.selected?.id != t.id || it.monday != monday) it.copy(loadingWeek = false)
+                    else it.copy(week = w, loadingWeek = false)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: CaptchaRequiredException) {
+                updTeachers { it.copy(loadingWeek = false) }
+                handleError(e) { loadTeacherWeek() }
+            } catch (e: Exception) {
+                updTeachers { it.copy(loadingWeek = false, error = "Не удалось загрузить расписание: ${e.message ?: "нет связи"}") }
+            }
+        }
+    }
 
     // ------------------------------------------------------------ обновления приложения
 

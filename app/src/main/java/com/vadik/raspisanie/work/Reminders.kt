@@ -19,6 +19,7 @@ object AppSync {
     fun afterDataChange(ctx: Context) {
         runCatching { ReminderScheduler.schedule(ctx) }
         runCatching { com.vadik.raspisanie.widget.WidgetKit.updateAll(ctx) }
+        runCatching { LessonNow.update(ctx) }
     }
 }
 

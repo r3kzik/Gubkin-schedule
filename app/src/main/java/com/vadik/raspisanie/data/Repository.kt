@@ -93,6 +93,78 @@ class Repository(
         }.sortedWith(compareBy({ it.nextDate ?: LocalDate.MAX }, { it.name }))
     }
 
+    // ------------------------------------------------------------ преподаватели
+
+    /** Преподаватели своей группы — из сохранённых недель, работает и без сети. */
+    fun myTeachers(groupId: String): List<Teacher> = TeacherParser.teachersOfWeeks(storage.allWeeks(groupId))
+
+    /** Порядок вариантов адреса: сначала тот, что уже сработал; пустой — если недавно не подошёл ни один. */
+    private fun variantsToTry(key: String, count: Int): List<Int> {
+        val probe = storage.loadProbe()
+        val known = probe[key]
+        val at = probe["${key}At"] ?: 0L
+        return when {
+            count == 0 -> emptyList()
+            known != null && known >= 0 && known < count -> listOf(known.toInt())
+            known == -1L && clock() - at < PROBE_RETRY_MS -> emptyList()
+            else -> (0 until count).toList()
+        }
+    }
+
+    private fun remember(key: String, variant: Int) {
+        storage.saveProbe(storage.loadProbe() + mapOf(key to variant.toLong(), "${key}At" to clock()))
+    }
+
+    /** Полный список преподавателей вуза (раз в неделю с сайта) или null, если сайт его не отдаёт. */
+    fun allTeachers(force: Boolean = false): List<Teacher>? {
+        val cached = storage.loadTeachers()
+        if (!force && cached != null && clock() - cached.second < TEACHERS_TTL_MS) return cached.first
+        var networkFailed = false
+        for (v in variantsToTry("list", source.teacherListVariants)) {
+            try {
+                val list = TeacherParser.parseTeacherList(source.teachersJson(v))
+                if (list.size >= 5) {
+                    storage.saveTeachers(list, clock())
+                    remember("list", v)
+                    return list
+                }
+            } catch (e: CaptchaRequiredException) {
+                throw e
+            } catch (e: java.io.IOException) {
+                networkFailed = true
+            } catch (e: Exception) {
+                // этот адрес не подошёл — пробуем следующий
+            }
+        }
+        if (!networkFailed && cached == null) remember("list", -1)
+        return cached?.first
+    }
+
+    /**
+     * Неделя преподавателя: полное расписание с сайта, а если не получилось —
+     * его пары из сохранённого расписания своей группы.
+     */
+    fun teacherWeek(teacher: Teacher, date: LocalDate, settings: Settings): TeacherWeek {
+        val monday = mondayOf(date)
+        var networkFailed = false
+        for (v in variantsToTry("week", source.teacherWeekVariants)) {
+            try {
+                val w = TeacherParser.parseWeek(source.teacherWeekJson(monday, teacher.id, teacher.divisionId, v), teacher, monday, clock())
+                remember("week", v)
+                return w
+            } catch (e: CaptchaRequiredException) {
+                throw e
+            } catch (e: java.io.IOException) {
+                networkFailed = true
+                break
+            } catch (e: Exception) {
+                // адрес не подошёл
+            }
+        }
+        if (!networkFailed && storage.loadProbe()["week"]?.let { it >= 0 } != true) remember("week", -1)
+        return TeacherParser.fromWeeks(storage.allWeeks(settings.groupId), teacher, monday, settings.groupName, clock())
+    }
+
     fun faculties(): List<Faculty> = ScheduleParser.parseFaculties(source.facultiesJson())
 
     fun groups(facultyId: String): List<Group> = ScheduleParser.parseGroups(source.groupsJson(facultyId))
@@ -113,6 +185,9 @@ class Repository(
     }
 
     companion object {
+        private const val TEACHERS_TTL_MS = 7 * 24 * 60 * 60 * 1000L
+        private const val PROBE_RETRY_MS = 24 * 60 * 60 * 1000L
+
         fun mondayOf(date: LocalDate): LocalDate = date.with(DayOfWeek.MONDAY)
 
         private val latinToCyr = mapOf(

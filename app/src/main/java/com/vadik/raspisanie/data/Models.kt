@@ -101,6 +101,10 @@ data class Prefs(
     val autoUpdateCheck: Boolean = true,
     /** Скачивать и ставить обновление сразу, без вопроса (Android сам подтвердит установку). */
     val autoInstall: Boolean = false,
+    /** Разделы на нижней панели кроме «Расписания» и «Другого» (не больше трёх). */
+    val bottomTabs: List<String> = listOf("teachers", "settings"),
+    /** Постоянное уведомление «Текущая пара» в шторке (по умолчанию выключено). */
+    val ongoingLesson: Boolean = false,
 ) {
     /** Пара другой подгруппы (не моей). */
     fun isOtherSubgroup(l: Lesson): Boolean =

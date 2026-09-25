@@ -78,6 +78,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -90,6 +91,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vadik.raspisanie.data.Edition
+import com.vadik.raspisanie.data.ScheduleText
 import com.vadik.raspisanie.data.Campus
 import com.vadik.raspisanie.data.Homework
 import com.vadik.raspisanie.data.Lesson
@@ -115,12 +117,6 @@ private val DM_HM: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM в HH:
 
 private enum class Screen(val depth: Int) { Loading(0), Onboarding(0), Main(0), Picker(1), ThemeEditor(1), Detail(2) }
 
-private val TABS = listOf(
-    TabItem("Расписание", Icons.Filled.DateRange),
-    TabItem("Предметы", Icons.Filled.Edit),
-    TabItem("Карта", Icons.Filled.Place),
-    TabItem("Настройки", Icons.Filled.Settings),
-)
 
 @Composable
 fun AppRoot(state: UiState, vm: MainViewModel) {
@@ -187,13 +183,16 @@ fun AppRoot(state: UiState, vm: MainViewModel) {
 /** Три вкладки с нижней панелью; содержимое меняется с лёгким сдвигом. */
 @Composable
 private fun MainTabs(state: UiState, vm: MainViewModel) {
-    BackHandler(enabled = state.tab != 0) { vm.selectTab(0) }
+    val bar = Tabs.bar(state.prefs)
+    val onBar = state.tab in bar
+    // из раздела, открытого через «Другое», назад — в «Другое»
+    BackHandler(enabled = state.tab != Tabs.SCHEDULE) { vm.selectTab(if (onBar) Tabs.SCHEDULE else Tabs.MORE) }
     Column(Modifier.fillMaxSize()) {
         AnimatedContent(
             targetState = state.tab,
             transitionSpec = {
                 if (Edition.lite) return@AnimatedContent EnterTransition.None togetherWith ExitTransition.None
-                val dir = if (targetState > initialState) 1 else -1
+                val dir = if (Tabs.order(targetState) > Tabs.order(initialState)) 1 else -1
                 (slideInHorizontally(tween(300)) { dir * it / 5 } + fadeIn(tween(300))) togetherWith
                     (slideOutHorizontally(tween(300)) { -dir * it / 5 } + fadeOut(tween(150)))
             },
@@ -201,13 +200,18 @@ private fun MainTabs(state: UiState, vm: MainViewModel) {
             label = "tab",
         ) { t ->
             when (t) {
-                1 -> SubjectsScreen(state, vm)
-                2 -> MapScreen(state, vm)
-                3 -> SettingsScreen(state, vm)
+                Tabs.SUBJECTS -> SubjectsScreen(state, vm)
+                Tabs.TEACHERS -> TeachersScreen(state, vm)
+                Tabs.MAP -> MapScreen(state, vm)
+                Tabs.SETTINGS -> SettingsScreen(state, vm)
+                Tabs.MORE -> MoreScreen(state, vm)
                 else -> ScheduleScreen(state, vm)
             }
         }
-        StyledTabBar(TABS, state.tab) { vm.selectTab(it) }
+        StyledTabBar(
+            bar.map { TabItem(Tabs.title(it), Tabs.icon(it)) },
+            bar.indexOf(if (onBar) state.tab else Tabs.MORE),
+        ) { vm.selectTab(bar[it]) }
     }
 }
 
@@ -329,7 +333,7 @@ fun ScheduleScreen(state: UiState, vm: MainViewModel) {
             state = pagerState,
             modifier = Modifier.weight(1f).fillMaxWidth().fadeEdges(40f, 70f),
         ) { page ->
-            DayPage(days[page], today, state.week, state.refreshing, state.prefs, state.homework, updatedText(state.week?.fetchedAt), onWhere = { vm.showOnMap(it.room) }) { d, l -> vm.openLesson(d, l) }
+            DayPage(days[page], today, state.week, state.refreshing, state.prefs, state.homework, updatedText(state.week?.fetchedAt), onWhere = { vm.showOnMap(it.room) }, groupName = settings.groupName) { d, l -> vm.openLesson(d, l) }
         }
 
     }
@@ -481,8 +485,10 @@ private fun DayPage(
     homework: List<Homework>,
     updated: String,
     onWhere: (Lesson) -> Unit,
+    groupName: String? = null,
     onOpen: (LocalDate, Lesson) -> Unit,
 ) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     val title = DAY_FULL[date.dayOfWeek.value - 1] + ", " + date.format(DM) +
         if (date == today) " · сегодня" else if (date == today.plusDays(1)) " · завтра" else ""
     if (week == null) {
@@ -573,15 +579,34 @@ private fun DayPage(
                 },
             ) { onOpen(date, l) }
         }
-        // «Обновлено …» — в самом конце списка, уезжает вместе с парами
+        // «Обновлено …» и копирование — в самом конце списка, уезжают вместе с парами
         item {
-            Text(
-                updated,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-            )
+            Column(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                val cs = MaterialTheme.colorScheme
+                val red = changedColor()
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GlassPill("⧉ Текстом", selected = false) {
+                        copyText(ctx, ScheduleText.day(date, lessons, groupName))
+                    }
+                    GlassPill("🖼 Картинкой", selected = false) {
+                        val colors = ImageColors(
+                            primary = cs.primary.toArgb(), onPrimary = cs.onPrimary.toArgb(),
+                            tertiary = cs.tertiary.toArgb(), background = cs.surface.toArgb(),
+                            card = cs.surfaceContainerHigh.toArgb(), text = cs.onSurface.toArgb(),
+                            muted = cs.onSurfaceVariant.toArgb(), red = red.toArgb(),
+                        )
+                        DayImage.share(ctx, DayImage.render(date, lessons, groupName, colors), date)
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    updated,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
     }
 }

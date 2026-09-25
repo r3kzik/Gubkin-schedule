@@ -167,13 +167,16 @@ object ScheduleParser {
                 )
             }
         }
-        lessons.sortWith(compareBy({ it.weekDay }, { timeKey(it.start) }))
+        // одна и та же пара может прийти несколько раз (поток из нескольких групп) — оставляем одну
+        val unique = lessons
+            .distinctBy { listOf(it.weekDay, it.start, it.end, it.subject, it.kind, it.room, it.teacher, it.subgroup, it.cancelled, it.moved) }
+            .sortedWith(compareBy({ it.weekDay }, { timeKey(it.start) }))
         return WeekSchedule(
             groupId = groupId,
             monday = monday,
             weekType = weekRussia?.get("type").str(),
             days = days,
-            lessons = lessons,
+            lessons = unique,
             fetchedAt = now,
         )
     }
@@ -366,7 +369,7 @@ object ScheduleParser {
     }
 
     /** Полное ФИО: "Иванов Иван Петрович". */
-    private fun fullName(el: JsonElement): String? {
+    internal fun fullName(el: JsonElement): String? {
         val o = el.obj() ?: return el.str()?.takeIf { it.isNotBlank() }
         val parts = listOf(
             o["lastName"].str(), o["firstName"].str(),
@@ -377,7 +380,7 @@ object ScheduleParser {
     }
 
     /** "Иванов Иван Петрович" -> "Иванов И. П." */
-    private fun teacherName(el: JsonElement): String? {
+    internal fun teacherName(el: JsonElement): String? {
         val o = el.obj() ?: return el.str()?.takeIf { it.isNotBlank() }
         val last = o["lastName"].str()?.trim().orEmpty()
         val first = o["firstName"].str()?.trim().orEmpty()
