@@ -155,7 +155,7 @@ fun SettingsScreen(state: UiState, vm: MainViewModel) {
                 Divider()
                 SwitchRow(
                     "Сообщать об изменениях",
-                    "Замены, отмены, переносы — проверка раз в 3 часа",
+                    "Замены, отмены, переносы — проверка раз в 6 часов",
                     prefs.changeNotify,
                 ) { v -> vm.updatePrefs { it.copy(changeNotify = v) } }
             }
@@ -452,21 +452,21 @@ private fun AboutCard(ctx: Context) {
     }
 }
 
-private fun shareRaw(ctx: Context, raw: File?) {
+internal fun shareRaw(ctx: Context, raw: File?, name: String = "raspisanie_data.json", title: String = "Отправить данные расписания") {
     if (raw == null) {
         Toast.makeText(ctx, "Данных пока нет — сначала обновите расписание", Toast.LENGTH_SHORT).show()
         return
     }
     try {
         val dir = File(ctx.cacheDir, "share").apply { mkdirs() }
-        val out = File(dir, "raspisanie_data.json")
+        val out = File(dir, name)
         raw.copyTo(out, overwrite = true)
         val uri = FileProvider.getUriForFile(ctx, ctx.packageName + ".files", out)
         val send = Intent(Intent.ACTION_SEND)
-            .setType("application/json")
+            .setType(if (name.endsWith(".json")) "application/json" else "text/plain")
             .putExtra(Intent.EXTRA_STREAM, uri)
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        ctx.startActivity(Intent.createChooser(send, "Отправить данные расписания"))
+        ctx.startActivity(Intent.createChooser(send, title))
     } catch (e: Exception) {
         Toast.makeText(ctx, "Не получилось: ${e.message}", Toast.LENGTH_SHORT).show()
     }

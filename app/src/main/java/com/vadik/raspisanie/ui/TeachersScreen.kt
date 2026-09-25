@@ -247,14 +247,24 @@ private fun TeacherDetail(ts: TeachersState, vm: MainViewModel) {
                         }
                     }
                 }
+                // в том же элементе списка, чтобы не сбивать автопрокрутку к сегодняшнему дню
+                SlowSiteNote(ts.loadingWeek, Modifier.padding(horizontal = 0.dp))
             }
             if (w != null && !w.full) item {
                 GlassCard(Modifier.fillMaxWidth(), shape = skinShape(22), tint = cs.tertiary.copy(alpha = 0.14f)) {
-                    Text(
-                        "Сайт не отдал полное расписание преподавателя — показаны только пары из расписания вашей группы.",
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(14.dp),
-                    )
+                    Column(Modifier.padding(14.dp)) {
+                        Text(
+                            "Сайт не отдал полное расписание преподавателя — показаны только пары из расписания вашей группы.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            GlassPill("Повторить", selected = true) { vm.retryTeacherFull() }
+                            GlassPill("Отправить ответ сайта автору", selected = false) {
+                                shareRaw(ctx, vm.teacherRawFile(), "mygub_teacher_answer.txt", "Отправить ответ сайта")
+                            }
+                        }
+                    }
                 }
             }
             ts.error?.let { e ->

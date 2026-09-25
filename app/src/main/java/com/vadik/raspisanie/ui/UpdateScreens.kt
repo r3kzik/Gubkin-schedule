@@ -10,6 +10,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,6 +34,11 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -144,6 +150,14 @@ fun UpdateDialog(u: UpdateState, vm: MainViewModel) {
                     "Файл берётся из официальных релизов на GitHub и перед установкой проверяется подпись.",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Не устанавливается? Скачайте вручную с GitHub ›",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable { openUrl(ctx, info.pageUrl) }.padding(vertical = 4.dp),
                 )
             }
         },
@@ -265,6 +279,50 @@ fun TamperScreen() {
             }
             OutlinedButton(onClick = { openUrl(ctx, "https://t.me/Bomb0clat67") }, modifier = Modifier.fillMaxWidth()) {
                 Text("Сообщить автору $AUTHOR_TG")
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- «ждём сайт»
+
+/**
+ * Если загрузка тянется дольше пары секунд — объясняем, что это сайт вуза отвечает медленно,
+ * а не приложение зависло.
+ */
+@Composable
+fun SlowSiteNote(active: Boolean, modifier: Modifier = Modifier) {
+    var show by remember { mutableStateOf(false) }
+    LaunchedEffect(active) {
+        show = false
+        if (active) {
+            kotlinx.coroutines.delay(3_000)
+            show = true
+        }
+    }
+    AnimatedVisibility(
+        visible = active && show,
+        enter = fadeIn() + expandVertically(),
+        exit = fadeOut() + shrinkVertically(),
+        modifier = modifier,
+    ) {
+        val cs = MaterialTheme.colorScheme
+        GlassCard(
+            Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 10.dp),
+            shape = skinShape(22),
+            tint = cs.secondary.copy(alpha = 0.14f),
+        ) {
+            Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                androidx.compose.material3.CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.size(12.dp))
+                Column {
+                    Text("Ждём ответа от сайта вуза…", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "Сайт иногда отвечает медленно — подождите немного.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = cs.onSurfaceVariant,
+                    )
+                }
             }
         }
     }

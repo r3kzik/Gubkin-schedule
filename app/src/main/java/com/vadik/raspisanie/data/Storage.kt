@@ -154,6 +154,12 @@ class Storage(private val dir: File) {
         writeAtomic(probeFile, buildJsonObject { m.forEach { (k, v) -> put(k, v) } }.toString())
     }
 
+    private val teacherRaw get() = File(dir, "teacher_raw.txt")
+
+    fun saveTeacherRaw(text: String) = runCatching { writeAtomic(teacherRaw, text) }
+
+    fun teacherRawFile(): File? = teacherRaw.takeIf { it.exists() }
+
     private val teachersFile get() = File(dir, "teachers.json")
 
     /** Сохранённый список преподавателей и время загрузки. */

@@ -235,7 +235,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (st.settings != null && (w == null || isStale(w))) refresh()
     }
 
-    fun refresh() {
+    /**
+     * Обновить неделю с сайта. [manual] — пользователь сам нажал ⟳: только тогда показываем окно капчи,
+     * при автоматическом обновлении просто сообщаем о ней плашкой.
+     */
+    fun refresh(manual: Boolean = false) {
         val s = _state.value.settings ?: return
         val date = _state.value.selectedDate
         val monday = Repository.mondayOf(date)
@@ -263,7 +267,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 throw e
             } catch (e: Exception) {
                 _state.update { it.copy(refreshing = false) }
-                handleError(e) { refresh() }
+                // есть что показать — не выскакиваем с капчей сами, а тихо предупреждаем
+                if (e is CaptchaRequiredException && !manual && _state.value.week != null) {
+                    afterCaptcha = { refresh(manual = true) }
+                    _state.update {
+                        it.copy(error = "Сайт вуза просит подтвердить, что вы человек. Показано сохранённое расписание — нажмите ⟳, чтобы ввести код.")
+                    }
+                } else handleError(e) { refresh(manual = true) }
             }
         }
     }
@@ -599,6 +609,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         loadTeacherWeek()
     }
 
+    /** Диагностика: что сайт ответил на запрос расписания преподавателя. */
+    fun teacherRawFile() = repo.teacherRawFile()
+
+    /** Снова попробовать полное расписание с сайта (сбросив «адрес не подошёл»). */
+    fun retryTeacherFull() {
+        viewModelScope.launch(Dispatchers.IO) { repo.forgetTeacherProbe() }.invokeOnCompletion { loadTeacherWeek() }
+    }
+
     fun teacherThisWeek() {
         updTeachers { it.copy(monday = Repository.mondayOf(LocalDate.now()), week = null) }
         loadTeacherWeek()
@@ -773,6 +791,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     companion object {
-        private const val STALE_MS = 30 * 60 * 1000L // 30 минут
+        /** Автообновление при открытии — не чаще раза в 3 часа (частые запросы злят сайт и вызывают капчу). */
+        private const val STALE_MS = 3 * 60 * 60 * 1000L
     }
 }

@@ -96,6 +96,14 @@ class Repository(
     // ------------------------------------------------------------ преподаватели
 
     /** Преподаватели своей группы — из сохранённых недель, работает и без сети. */
+    /** Забыть, что адреса расписания преподавателя «не подошли», — попробовать снова. */
+    fun forgetTeacherProbe() {
+        storage.saveProbe(storage.loadProbe() - WEEK_KEY - "${WEEK_KEY}At")
+    }
+
+    /** Последний ответ сайта на запрос расписания преподавателя — для диагностики. */
+    fun teacherRawFile() = storage.teacherRawFile()
+
     fun myTeachers(groupId: String): List<Teacher> = TeacherParser.teachersOfWeeks(storage.allWeeks(groupId))
 
     /** Порядок вариантов адреса: сначала тот, что уже сработал; пустой — если недавно не подошёл ни один. */
@@ -147,10 +155,12 @@ class Repository(
     fun teacherWeek(teacher: Teacher, date: LocalDate, settings: Settings): TeacherWeek {
         val monday = mondayOf(date)
         var networkFailed = false
-        for (v in variantsToTry("week", source.teacherWeekVariants)) {
+        for (v in variantsToTry(WEEK_KEY, source.teacherWeekVariants)) {
             try {
-                val w = TeacherParser.parseWeek(source.teacherWeekJson(monday, teacher.id, teacher.divisionId, v), teacher, monday, clock())
-                remember("week", v)
+                val text = source.teacherWeekJson(monday, teacher.id, teacher.divisionId, v)
+                storage.saveTeacherRaw("вариант $v, ${teacher.fullName} (${teacher.id}, кафедра ${teacher.divisionId})\n$text")
+                val w = TeacherParser.parseWeek(text, teacher, monday, clock())
+                remember(WEEK_KEY, v)
                 return w
             } catch (e: CaptchaRequiredException) {
                 throw e
@@ -158,10 +168,13 @@ class Repository(
                 networkFailed = true
                 break
             } catch (e: Exception) {
-                // адрес не подошёл
+                // адрес не подошёл — запишем почему, для диагностики
+                if (e !is WrongEndpointException) {
+                    storage.saveTeacherRaw("вариант $v, ${teacher.fullName}: ошибка ${e.javaClass.simpleName}: ${e.message}")
+                }
             }
         }
-        if (!networkFailed && storage.loadProbe()["week"]?.let { it >= 0 } != true) remember("week", -1)
+        if (!networkFailed && storage.loadProbe()[WEEK_KEY]?.let { it >= 0 } != true) remember(WEEK_KEY, -1)
         return TeacherParser.fromWeeks(storage.allWeeks(settings.groupId), teacher, monday, settings.groupName, clock())
     }
 
@@ -186,7 +199,9 @@ class Repository(
 
     companion object {
         private const val TEACHERS_TTL_MS = 7 * 24 * 60 * 60 * 1000L
-        private const val PROBE_RETRY_MS = 24 * 60 * 60 * 1000L
+        private const val PROBE_RETRY_MS = 6 * 60 * 60 * 1000L
+        /** Новый ключ — чтобы после обновления приложение заново попробовало адреса сайта. */
+        private const val WEEK_KEY = "tweek"
 
         fun mondayOf(date: LocalDate): LocalDate = date.with(DayOfWeek.MONDAY)
 
