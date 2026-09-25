@@ -1,6 +1,8 @@
 package com.vadik.raspisanie.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -87,6 +89,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.vadik.raspisanie.data.Edition
 import com.vadik.raspisanie.data.Campus
 import com.vadik.raspisanie.data.Homework
 import com.vadik.raspisanie.data.Lesson
@@ -138,10 +141,11 @@ fun AppRoot(state: UiState, vm: MainViewModel) {
     val lastDetail = remember { arrayOfNulls<LessonDetail>(1) }
     state.detail?.let { lastDetail[0] = it }
 
-    AuroraBackground(animated = state.prefs.animatedBackground) {
+    AuroraBackground(animated = state.prefs.animatedBackground && !Edition.lite) {
         AnimatedContent(
             targetState = screen,
             transitionSpec = {
+                if (Edition.lite) return@AnimatedContent EnterTransition.None togetherWith ExitTransition.None
                 val forward = targetState.depth >= initialState.depth
                 val dur = 380
                 if (forward) {
@@ -188,6 +192,7 @@ private fun MainTabs(state: UiState, vm: MainViewModel) {
         AnimatedContent(
             targetState = state.tab,
             transitionSpec = {
+                if (Edition.lite) return@AnimatedContent EnterTransition.None togetherWith ExitTransition.None
                 val dir = if (targetState > initialState) 1 else -1
                 (slideInHorizontally(tween(300)) { dir * it / 5 } + fadeIn(tween(300))) togetherWith
                     (slideOutHorizontally(tween(300)) { -dir * it / 5 } + fadeOut(tween(150)))
@@ -595,11 +600,13 @@ private fun formatIn(min: Int): String = when {
 /** Пустой день: большой эмодзи мягко «парит». */
 @Composable
 private fun EmptyState(emoji: String, title: String, text: String, updated: String) {
-    val inf = rememberInfiniteTransition(label = "float")
-    val t by inf.animateFloat(
-        0f, (2 * Math.PI).toFloat(),
-        infiniteRepeatable(tween(3600, easing = LinearEasing), RepeatMode.Restart), label = "t",
-    )
+    val t = if (Edition.lite) 0f else {
+        val inf = rememberInfiniteTransition(label = "float")
+        inf.animateFloat(
+            0f, (2 * Math.PI).toFloat(),
+            infiniteRepeatable(tween(3600, easing = LinearEasing), RepeatMode.Restart), label = "t",
+        ).value
+    }
     Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
         GlassCard(Modifier.fillMaxWidth(), shape = skinShape(32)) {
             Column(
@@ -659,7 +666,7 @@ private fun LessonCard(
     val alpha = if (inactive || otherSubgroup) 0.5f else 1f
     val stripe = kindColor(l.kind)
     val shape = skinShape(26)
-    val glow = if (isNow) {
+    val glow = if (isNow && Edition.lite) 1f else if (isNow) {
         val inf = rememberInfiniteTransition(label = "glow")
         inf.animateFloat(
             0.35f, 1f, infiniteRepeatable(tween(1400), RepeatMode.Reverse), label = "g",

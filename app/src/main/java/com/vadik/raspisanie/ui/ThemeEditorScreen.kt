@@ -49,6 +49,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.vadik.raspisanie.data.Edition
 import com.vadik.raspisanie.data.Accents
 import com.vadik.raspisanie.data.Prefs
 import kotlin.math.roundToInt
@@ -77,7 +78,8 @@ fun ThemeEditorScreen(state: UiState, vm: MainViewModel) {
 
             // ---------------- стиль
             SectionTitle("Стиль")
-            STYLES.chunked(2).forEach { row ->
+            if (Edition.lite) Hint("В MyGub Lite — стили без стекла и анимаций, чтобы всё летало даже на старом телефоне.")
+            STYLES.filter { !Edition.lite || it.id in Edition.LITE_STYLES }.chunked(2).forEach { row ->
                 Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     row.forEach { st ->
                         StyleTile(

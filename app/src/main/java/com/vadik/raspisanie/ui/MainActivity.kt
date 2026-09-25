@@ -28,7 +28,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             val state by vm.state.collectAsState()
-            val dark = effectiveDark(state.prefs.style, state.prefs.theme)
+            val dark = effectiveDark(com.vadik.raspisanie.data.Edition.effective(state.prefs).style, state.prefs.theme)
             // цвет значков в строке состояния под выбранную тему
             LaunchedEffect(dark) {
                 val style = if (dark) SystemBarStyle.dark(Color.TRANSPARENT)
