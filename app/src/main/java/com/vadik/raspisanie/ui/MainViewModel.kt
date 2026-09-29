@@ -20,6 +20,7 @@ import com.vadik.raspisanie.data.SiteException
 import com.vadik.raspisanie.data.WeekSchedule
 import com.vadik.raspisanie.data.UpdateInfo
 import com.vadik.raspisanie.data.Teacher
+import com.vadik.raspisanie.data.PersonalEvent
 import com.vadik.raspisanie.data.TeacherWeek
 import com.vadik.raspisanie.security.Integrity
 import com.vadik.raspisanie.work.Updater
@@ -80,6 +81,19 @@ data class LessonDetail(
     val history: List<Change> = emptyList(),
 )
 
+/** Черновик своего дела в редакторе. */
+data class PersonalDraft(
+    val id: String?,
+    val title: String,
+    val date: LocalDate,
+    val start: String,
+    val end: String,
+    val place: String,
+    val note: String,
+    /** none | daily | weekly */
+    val repeat: String,
+)
+
 /** Вкладка «Преподаватели». */
 data class TeachersState(
     val query: String = "",
@@ -136,6 +150,9 @@ data class UiState(
     /** Счётчик, чтобы повторный показ того же места снова запускал анимацию. */
     val mapFocusSeq: Int = 0,
     val update: UpdateState = UpdateState(),
+    /** Свои дела пользователя. */
+    val personal: List<PersonalEvent> = emptyList(),
+    val personalDraft: PersonalDraft? = null,
     val teachers: TeachersState = TeachersState(),
     /** Приложение подписано чужим ключом — это не оригинальный MyGub. */
     val tampered: Boolean = false,
@@ -172,7 +189,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val (s, prefs) = withContext(Dispatchers.IO) { repo.settings() to repo.prefs() }
             if (prefs.autoUpdateCheck) launch { checkUpdates(manual = false) }
             val hw = withContext(Dispatchers.IO) { repo.homework() }
-            _state.update { it.copy(prefs = prefs, homework = hw) }
+            val personal = withContext(Dispatchers.IO) { repo.personal() }
+            _state.update { it.copy(prefs = prefs, homework = hw, personal = personal) }
             if (s == null) {
                 _state.update { it.copy(starting = false) }
                 startOnboarding()
@@ -752,7 +770,69 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // ------------------------------------------------------------ карточка пары
 
+    // ------------------------------------------------------------ свои дела
+
+    /** Новое дело на [date] или правка существующего. */
+    fun openPersonalEditor(date: LocalDate, existing: PersonalEvent? = null) {
+        val draft = if (existing != null) PersonalDraft(
+            existing.id, existing.title, existing.date, existing.start, existing.end,
+            existing.place.orEmpty(), existing.note.orEmpty(), existing.repeat,
+        ) else {
+            // по умолчанию — ближайший полный час (сегодня) или 10:00
+            val now = java.time.LocalTime.now()
+            val h = if (date == LocalDate.now()) (now.hour + 1).coerceAtMost(22) else 10
+            PersonalDraft(null, "", date, "%d:00".format(h), "%d:00".format(h + 1), "", "", "none")
+        }
+        _state.update { it.copy(personalDraft = draft) }
+    }
+
+    fun closePersonalEditor() = _state.update { it.copy(personalDraft = null) }
+
+    fun savePersonal(d: PersonalDraft) {
+        if (d.title.isBlank()) return
+        val e = PersonalEvent(
+            id = d.id ?: java.util.UUID.randomUUID().toString(),
+            title = d.title.trim(),
+            date = d.date,
+            start = d.start,
+            end = d.end,
+            place = d.place.trim().ifBlank { null },
+            note = d.note.trim().ifBlank { null },
+            repeat = d.repeat,
+        )
+        _state.update { it.copy(personalDraft = null) }
+        viewModelScope.launch {
+            val list = withContext(Dispatchers.IO) { repo.upsertPersonal(e).also { AppSync.afterDataChange(app) } }
+            _state.update { it.copy(personal = list) }
+            reloadWeekLocal()
+        }
+    }
+
+    fun deletePersonal(id: String) {
+        _state.update { it.copy(personalDraft = null) }
+        viewModelScope.launch {
+            val list = withContext(Dispatchers.IO) { repo.deletePersonal(id).also { AppSync.afterDataChange(app) } }
+            _state.update { it.copy(personal = list) }
+            reloadWeekLocal()
+        }
+    }
+
+    /** Перечитать открытую неделю из памяти (без запроса к сайту) — после правки своих дел. */
+    private fun reloadWeekLocal() {
+        val s = _state.value.settings ?: return
+        val date = _state.value.selectedDate
+        viewModelScope.launch {
+            val w = withContext(Dispatchers.IO) { repo.cachedWeek(s.groupId, date) }
+            _state.update { st -> if (st.monday == Repository.mondayOf(date)) st.copy(week = w) else st }
+        }
+    }
+
     fun openLesson(date: LocalDate, lesson: Lesson) {
+        // своё дело открывается сразу в редакторе
+        lesson.personalId?.let { pid ->
+            _state.value.personal.firstOrNull { it.id == pid }?.let { openPersonalEditor(date, it) }
+            return
+        }
         _state.update { it.copy(detail = LessonDetail(date, lesson)) }
         viewModelScope.launch {
             val h = withContext(Dispatchers.IO) { repo.historyFor(date, lesson.subject) }

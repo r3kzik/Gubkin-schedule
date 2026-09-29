@@ -57,6 +57,26 @@ fun MoreScreen(state: UiState, vm: MainViewModel) {
             }
 
             // ---------------- нижняя панель
+            // ---------------- свои дела
+            SectionTitle("Мои дела")
+            SettingsCard {
+                val today = java.time.LocalDate.now()
+                val list = state.personal
+                    .filter { it.repeat != "none" || !it.date.isBefore(today) }
+                    .sortedWith(compareBy({ it.repeat == "none" }, { it.date }, { com.vadik.raspisanie.data.timeKey(it.start) }))
+                if (list.isEmpty()) {
+                    Hint("Добавляйте свои дела и занятия: репетитор, спорт, встречи. Они появятся в расписании рядом с парами, в виджетах и напоминаниях.")
+                }
+                list.forEach { e ->
+                    NavRow(
+                        e.title,
+                        "${repeatText(e)} · ${e.start}–${e.end}" + (e.place?.let { " · $it" } ?: ""),
+                    ) { vm.openPersonalEditor(e.date, e) }
+                    Divider()
+                }
+                NavRow("＋ Добавить дело", "Дату, время и повтор можно выбрать") { vm.openPersonalEditor(today) }
+            }
+
             SectionTitle("Нижняя панель")
             SettingsCard {
                 Hint("Выберите до ${Tabs.MAX_EXTRA} разделов. «Расписание» и «Другое» всегда внизу, остальное — здесь.")

@@ -91,6 +91,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vadik.raspisanie.data.Edition
+import com.vadik.raspisanie.data.Personal
 import com.vadik.raspisanie.data.ScheduleText
 import com.vadik.raspisanie.data.Campus
 import com.vadik.raspisanie.data.Homework
@@ -178,6 +179,7 @@ fun AppRoot(state: UiState, vm: MainViewModel) {
     state.captcha?.let { CaptchaDialog(it, vm) }
     state.hwDraft?.let { HomeworkEditorDialog(it, vm) }
     if (state.update.showDialog && state.update.info != null) UpdateDialog(state.update, vm)
+    state.personalDraft?.let { PersonalEditorDialog(it, vm) }
 }
 
 /** Три вкладки с нижней панелью; содержимое меняется с лёгким сдвигом. */
@@ -335,7 +337,7 @@ fun ScheduleScreen(state: UiState, vm: MainViewModel) {
             state = pagerState,
             modifier = Modifier.weight(1f).fillMaxWidth().fadeEdges(40f, 70f),
         ) { page ->
-            DayPage(days[page], today, state.week, state.refreshing, state.prefs, state.homework, updatedText(state.week?.fetchedAt), onWhere = { vm.showOnMap(it.room) }, groupName = settings.groupName) { d, l -> vm.openLesson(d, l) }
+            DayPage(days[page], today, state.week, state.refreshing, state.prefs, state.homework, updatedText(state.week?.fetchedAt), onWhere = { vm.showOnMap(it.room) }, groupName = settings.groupName, onAdd = { vm.openPersonalEditor(it) }) { d, l -> vm.openLesson(d, l) }
         }
 
     }
@@ -488,6 +490,7 @@ private fun DayPage(
     updated: String,
     onWhere: (Lesson) -> Unit,
     groupName: String? = null,
+    onAdd: (LocalDate) -> Unit = {},
     onOpen: (LocalDate, Lesson) -> Unit,
 ) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
@@ -499,12 +502,13 @@ private fun DayPage(
             title,
             if (refreshing) "Загружаю расписание…" else "Нет сохранённого расписания на эту неделю. Нажмите ⟳ вверху.",
             updated,
+            action = "＋ Своё дело" to { onAdd(date) },
         )
         return
     }
     val lessons = week.lessonsOn(date).filter { prefs.shows(it) }
     if (lessons.isEmpty()) {
-        EmptyState("🎉", title, "Пар нет — можно отдохнуть", updated)
+        EmptyState("🎉", title, "Пар нет — можно отдохнуть", updated, action = "＋ Своё дело" to { onAdd(date) })
         return
     }
     // раз в 30 секунд обновляем «идёт сейчас» и прогресс
@@ -522,10 +526,18 @@ private fun DayPage(
 
     // При открытии сегодняшнего дня сразу прокручиваем к паре, которая идёт сейчас
     // (или к ближайшей следующей), чтобы не листать вручную.
+    // пары и перемены между ними одним списком
+    val gaps = remember(lessons) { Personal.gapsAfter(lessons) }
+    val rows: List<Any> = remember(lessons) {
+        buildList { lessons.forEachIndexed { i, l -> add(l); gaps[i]?.let { add(it) } } }
+    }
     val listState = rememberLazyListState()
     LaunchedEffect(date, lessons.size) {
         if (date != today) return@LaunchedEffect
-        val idx = lessons.indexOfFirst { l ->
+        // сейчас перемена — к ней, иначе к текущей / следующей паре
+        val gapIdx = rows.indexOfFirst { r -> r is Personal.Gap && nowMin in timeKey(r.start) until timeKey(r.end) }
+        val idx = if (gapIdx >= 0) gapIdx else rows.indexOfFirst { r ->
+            val l = r as? Lesson ?: return@indexOfFirst false
             val s = timeKey(l.start)
             val e = timeKey(l.end.ifBlank { l.start })
             !l.cancelled && !l.moved && !prefs.isOtherSubgroup(l) && nowMin < e && (nowMin >= s || l == nextStart)
@@ -549,13 +561,27 @@ private fun DayPage(
                 modifier = Modifier.padding(start = 8.dp, bottom = 0.dp),
             )
         }
-        itemsIndexed(lessons, key = { i, _ -> "$date-$i" }) { i, l ->
+        itemsIndexed(rows, key = { i, _ -> "$date-$i" }) { i, row ->
             // появление карточек по очереди: снизу вверх с лёгкой пружинкой
             val appear = remember(date) { Animatable(0f) }
             LaunchedEffect(date) {
-                delay(i * 55L)
+                delay(i * 45L)
                 appear.animateTo(1f, spring(dampingRatio = 0.75f, stiffness = 260f))
             }
+            val appearMod = Modifier.graphicsLayer {
+                alpha = appear.value.coerceIn(0f, 1f)
+                translationY = (1f - appear.value) * 80f
+                val sc = 0.94f + 0.06f * appear.value
+                scaleX = sc
+                scaleY = sc
+            }
+            if (row is Personal.Gap) {
+                val gs = timeKey(row.start)
+                val ge = timeKey(row.end)
+                BreakCard(row, isNow = date == today && nowMin in gs until ge, minutesLeft = ge - nowMin, modifier = appearMod)
+                return@itemsIndexed
+            }
+            val l = row as Lesson
             val other = prefs.isOtherSubgroup(l)
             val s = timeKey(l.start)
             val e = timeKey(l.end.ifBlank { l.start })
@@ -572,13 +598,7 @@ private fun DayPage(
                 nextIn = nextIn,
                 otherSubgroup = other,
                 onWhere = { onWhere(l) },
-                modifier = Modifier.graphicsLayer {
-                    alpha = appear.value.coerceIn(0f, 1f)
-                    translationY = (1f - appear.value) * 80f
-                    val sc = 0.94f + 0.06f * appear.value
-                    scaleX = sc
-                    scaleY = sc
-                },
+                modifier = appearMod,
             ) { onOpen(date, l) }
         }
         // «Обновлено …» и копирование — в самом конце списка, уезжают вместе с парами
@@ -586,6 +606,8 @@ private fun DayPage(
             Column(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 val cs = MaterialTheme.colorScheme
                 val red = changedColor()
+                GlassPill("＋ Своё дело", selected = true) { onAdd(date) }
+                Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     GlassPill("⧉ Текстом", selected = false) {
                         copyText(ctx, ScheduleText.day(date, lessons, groupName))
@@ -626,7 +648,7 @@ private fun formatIn(min: Int): String = when {
 
 /** Пустой день: большой эмодзи мягко «парит». */
 @Composable
-private fun EmptyState(emoji: String, title: String, text: String, updated: String) {
+private fun EmptyState(emoji: String, title: String, text: String, updated: String, action: Pair<String, () -> Unit>? = null) {
     val t = if (Edition.lite) 0f else {
         val inf = rememberInfiniteTransition(label = "float")
         inf.animateFloat(
@@ -650,11 +672,83 @@ private fun EmptyState(emoji: String, title: String, text: String, updated: Stri
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                 )
+                action?.let { (label, onClick) ->
+                    Spacer(Modifier.height(14.dp))
+                    GlassPill(label, selected = true, onClick = onClick)
+                }
                 Spacer(Modifier.height(14.dp))
                 Text(
                     updated,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+/** Перемена между парами: та же форма и обводка, что у пары; идущая сейчас — светится. */
+@Composable
+private fun BreakCard(g: Personal.Gap, isNow: Boolean, minutesLeft: Int, modifier: Modifier = Modifier) {
+    val cs = MaterialTheme.colorScheme
+    val shape = skinShape(26)
+    val glow = if (isNow && Edition.lite) 1f else if (isNow) {
+        val inf = rememberInfiniteTransition(label = "breakGlow")
+        inf.animateFloat(0.35f, 1f, infiniteRepeatable(tween(1400), RepeatMode.Reverse), label = "bg").value
+    } else 0f
+    val accent = when (g.kind) {
+        "lunch" -> cs.tertiary
+        "window" -> cs.secondary
+        else -> cs.outline
+    }
+    val dur = when {
+        g.minutes < 60 -> "${g.minutes} мин"
+        g.minutes % 60 == 0 -> "${g.minutes / 60} ч"
+        else -> "${g.minutes / 60} ч ${g.minutes % 60} мин"
+    }
+    GlassCard(
+        modifier
+            .fillMaxWidth()
+            .then(if (isNow) Modifier.border(2.dp, cs.primary.copy(alpha = glow), shape) else Modifier),
+        shape = shape,
+        tint = if (isNow) cs.primary.copy(alpha = 0.08f) else if (g.kind == "lunch") cs.tertiary.copy(alpha = 0.06f) else null,
+    ) {
+        CompositionLocalProvider(LocalContentColor provides cs.onSurface) {
+            Row(
+                Modifier.padding(horizontal = 16.dp, vertical = 10.dp).height(IntrinsicSize.Min),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    Modifier
+                        .width(5.dp)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(accent.copy(alpha = 0.55f)),
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    when (g.kind) { "lunch" -> "🍽"; "window" -> "🪟"; else -> "☕" },
+                    fontSize = 18.sp,
+                    modifier = Modifier.width(54.dp),
+                )
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        if (isNow) "${g.title} · сейчас" else g.title,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (isNow) cs.primary else cs.onSurface,
+                    )
+                    Text(
+                        "${g.start}–${g.end} · $dur",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = cs.onSurfaceVariant,
+                    )
+                }
+                if (isNow) Text(
+                    "ещё $minutesLeft мин",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = cs.primary,
                 )
             }
         }
@@ -670,6 +764,7 @@ private fun kindColor(kind: String?): Color {
         k.startsWith("лек") -> cs.primary
         k.startsWith("сем") || k.startsWith("прак") -> cs.tertiary
         k.startsWith("лаб") -> cs.secondary
+        k.startsWith("своё") -> androidx.compose.ui.graphics.lerp(cs.primary, cs.error, 0.45f)
         else -> cs.outline
     }
 }

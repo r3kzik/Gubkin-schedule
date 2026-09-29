@@ -154,6 +154,40 @@ class Storage(private val dir: File) {
         writeAtomic(probeFile, buildJsonObject { m.forEach { (k, v) -> put(k, v) } }.toString())
     }
 
+    private val personalFile get() = File(dir, "personal.json")
+
+    fun loadPersonal(): List<PersonalEvent> = try {
+        Json.parseToJsonElement(personalFile.readText()).arr().orEmpty().mapNotNull { e ->
+            val o = e.obj() ?: return@mapNotNull null
+            PersonalEvent(
+                id = o["id"].str() ?: return@mapNotNull null,
+                title = o["title"].str().orEmpty(),
+                date = o["date"].str()?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: return@mapNotNull null,
+                start = o["start"].str() ?: return@mapNotNull null,
+                end = o["end"].str().orEmpty(),
+                place = o["place"].str(),
+                note = o["note"].str(),
+                repeat = o["repeat"].str() ?: "none",
+            )
+        }
+    } catch (e: Exception) {
+        emptyList()
+    }
+
+    fun savePersonal(items: List<PersonalEvent>) {
+        val arr = buildJsonArray {
+            items.forEach { e ->
+                add(buildJsonObject {
+                    put("id", e.id); put("title", e.title); put("date", e.date.toString())
+                    put("start", e.start); put("end", e.end); put("repeat", e.repeat)
+                    e.place?.let { put("place", it) }
+                    e.note?.let { put("note", it) }
+                })
+            }
+        }
+        writeAtomic(personalFile, arr.toString())
+    }
+
     private val teacherRaw get() = File(dir, "teacher_raw.txt")
 
     fun saveTeacherRaw(text: String) = runCatching { writeAtomic(teacherRaw, text) }

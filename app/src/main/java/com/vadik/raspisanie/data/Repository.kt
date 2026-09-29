@@ -18,8 +18,32 @@ class Repository(
     fun settings(): Settings? = storage.loadSettings()
     fun saveSettings(s: Settings) = storage.saveSettings(s)
 
+    /** Сохранённая неделя вместе со своими делами пользователя. */
     fun cachedWeek(groupId: String, date: LocalDate): WeekSchedule? =
-        storage.loadWeek(groupId, mondayOf(date))
+        Personal.merge(storage.loadWeek(groupId, mondayOf(date)), mondayOf(date), groupId, storage.loadPersonal())
+
+    /** Только расписание с сайта (без своих дел). */
+    fun siteWeek(groupId: String, date: LocalDate): WeekSchedule? = storage.loadWeek(groupId, mondayOf(date))
+
+    // ------------------------------------------------------------ свои дела
+
+    fun personal(): List<PersonalEvent> = storage.loadPersonal()
+
+    fun upsertPersonal(e: PersonalEvent): List<PersonalEvent> {
+        val list = storage.loadPersonal().filter { it.id != e.id } + e
+        storage.savePersonal(list)
+        return list
+    }
+
+    fun deletePersonal(id: String): List<PersonalEvent> {
+        val list = storage.loadPersonal().filter { it.id != id }
+        storage.savePersonal(list)
+        return list
+    }
+
+    /** Добавить свои дела к свежей неделе с сайта. */
+    fun withPersonal(w: WeekSchedule): WeekSchedule =
+        Personal.merge(w, w.monday, w.groupId, storage.loadPersonal()) ?: w
 
     fun prefs(): Prefs = storage.loadPrefs()
     fun savePrefs(p: Prefs) = storage.savePrefs(p)
@@ -45,7 +69,7 @@ class Repository(
         val changes = ScheduleDiff.changes(old, fresh, today, { prefs.concernsMe(it) }, clock())
         storage.saveWeek(fresh)
         storage.appendHistory(changes)
-        return RefreshResult(fresh, changes.map { it.line })
+        return RefreshResult(withPersonal(fresh), changes.map { it.line })
     }
 
     // ---------------------------------------------------------------- ДЗ и предметы

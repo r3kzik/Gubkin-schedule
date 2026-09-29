@@ -35,6 +35,8 @@ data class Lesson(
     /** Доп. информация к паре и кафедра. */
     val info: String? = null,
     val department: String? = null,
+    /** Не пара с сайта, а своё дело пользователя (id записи). */
+    val personalId: String? = null,
 )
 
 /** День недели из ответа сайта: дата в формате dd-MM-yyyy и номер дня. */
