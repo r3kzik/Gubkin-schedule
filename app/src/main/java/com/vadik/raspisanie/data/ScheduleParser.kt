@@ -178,6 +178,7 @@ object ScheduleParser {
             days = days,
             lessons = unique,
             fetchedAt = now,
+            weekNumber = weekRussia?.get("number").int(),
         )
     }
 

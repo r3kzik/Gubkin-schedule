@@ -323,6 +323,7 @@ class Storage(private val dir: File) {
             put("groupId", w.groupId)
             put("monday", w.monday.toString())
             w.weekType?.let { put("weekType", it) }
+            w.weekNumber?.let { put("weekNumber", it) }
             put("fetchedAt", w.fetchedAt)
             put("days", buildJsonArray {
                 w.days.forEach { d ->
@@ -370,6 +371,7 @@ class Storage(private val dir: File) {
                 groupId = o["groupId"].str() ?: return null,
                 monday = LocalDate.parse(o["monday"].str() ?: return null),
                 weekType = o["weekType"].str(),
+                weekNumber = o["weekNumber"].int(),
                 days = o["days"].arr().orEmpty().mapNotNull { d ->
                     val x = d.obj() ?: return@mapNotNull null
                     WeekDay(x["date"].str() ?: return@mapNotNull null, x["n"].int() ?: 0)

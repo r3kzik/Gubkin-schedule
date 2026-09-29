@@ -49,6 +49,8 @@ data class WeekSchedule(
     val days: List<WeekDay>,
     val lessons: List<Lesson>,
     val fetchedAt: Long,
+    /** Номер учебной недели с сайта (weekRussia.number). */
+    val weekNumber: Int? = null,
 ) {
     /** Пары на конкретную дату, отсортированные по времени. */
     fun lessonsOn(date: LocalDate): List<Lesson> {
@@ -57,6 +59,12 @@ data class WeekSchedule(
         else days.firstOrNull { it.date == key }?.weekDayNumber ?: return emptyList()
         return lessons.filter { it.weekDay == wd }.sortedBy { timeKey(it.start) }
     }
+
+    /** Номер недели: с сайта, а если его нет — от начала семестра. */
+    val number: Int get() = weekNumber ?: WeekParity.numberFor(monday)
+
+    /** «чётная» / «нечётная». */
+    val parityLabel: String get() = WeekParity.label(number)
 
     val weekTypeLabel: String?
         get() = when (weekType?.lowercase()) {
@@ -164,3 +172,33 @@ class CaptchaRequiredException : Exception("Сайт просит ввести �
 
 /** Сайт ответил, но не так, как ожидалось (ошибка сервера, блокировка, отказ). */
 class SiteException(message: String) : Exception(message)
+
+/** Чётная / нечётная неделя. */
+object WeekParity {
+    /** Номер недели от начала семестра (осень — с недели 1 сентября, весна — с недели 1 февраля). */
+    fun numberFor(monday: java.time.LocalDate): Int {
+        val start = when (monday.plusDays(6).monthValue) {
+            in 8..12 -> java.time.LocalDate.of(monday.plusDays(6).year, 9, 1)
+            1 -> java.time.LocalDate.of(monday.plusDays(6).year - 1, 9, 1)
+            else -> java.time.LocalDate.of(monday.plusDays(6).year, 2, 1)
+        }.with(java.time.DayOfWeek.MONDAY)
+        return (java.time.temporal.ChronoUnit.WEEKS.between(start, monday) + 1).toInt().coerceAtLeast(1)
+    }
+
+    fun isEven(n: Int) = n % 2 == 0
+
+    fun label(n: Int) = if (isEven(n)) "чётная" else "нечётная"
+
+    /** «1 пара», «3 пары», «5 пар». */
+    fun lessonsWord(n: Int): String {
+        val m100 = n % 100
+        val m10 = n % 10
+        val w = when {
+            m100 in 11..14 -> "пар"
+            m10 == 1 -> "пара"
+            m10 in 2..4 -> "пары"
+            else -> "пар"
+        }
+        return "$n $w"
+    }
+}

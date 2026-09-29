@@ -92,6 +92,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vadik.raspisanie.data.Edition
 import com.vadik.raspisanie.data.Personal
+import com.vadik.raspisanie.data.WeekParity
 import com.vadik.raspisanie.data.ScheduleText
 import com.vadik.raspisanie.data.Campus
 import com.vadik.raspisanie.data.Homework
@@ -111,6 +112,7 @@ import kotlin.math.sin
 
 private val DAY_NAMES = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
 private val DAY_FULL = listOf("Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье")
+private val DAY_SHORT_LOWER = listOf("пн", "вт", "ср", "чт", "пт", "сб", "вс")
 private val DM: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM")
 /** «пятница, 25 сентября» */
 private val HEADER_DATE: DateTimeFormatter = DateTimeFormatter.ofPattern("EEEE, d MMMM", java.util.Locale.forLanguageTag("ru"))
@@ -274,10 +276,15 @@ fun ScheduleScreen(state: UiState, vm: MainViewModel) {
                         )
                     }
                 }
+                // маленький счётчик пар выбранного дня (без отменённых, чужой подгруппы и своих дел)
+                val count = state.week?.lessonsOn(state.selectedDate)
+                    ?.count { !it.cancelled && !it.moved && it.personalId == null && state.prefs.concernsMe(it) }
                 val sub = listOfNotNull(
                     settings.groupName,
-                    state.week?.weekTypeLabel,
-                    if (state.prefs.subgroup != 0) "${state.prefs.subgroup} подгр." else null,
+                    count?.let { n ->
+                        val day = if (state.selectedDate == today) "сегодня" else DAY_SHORT_LOWER[state.selectedDate.dayOfWeek.value - 1]
+                        if (n == 0) "$day пар нет" else "$day ${WeekParity.lessonsWord(n)}"
+                    },
                 ).joinToString(" · ")
                 Text(sub, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant, maxLines = 1)
             }
@@ -293,6 +300,7 @@ fun ScheduleScreen(state: UiState, vm: MainViewModel) {
             Column(Modifier.padding(horizontal = 4.dp, vertical = 2.dp)) {
                 WeekHeader(
                     monday = monday,
+                    weekNumber = state.week?.number ?: WeekParity.numberFor(monday),
                     isCurrentWeek = today in days,
                     onPrev = { vm.shiftWeek(-1) },
                     onNext = { vm.shiftWeek(1) },
@@ -346,12 +354,13 @@ fun ScheduleScreen(state: UiState, vm: MainViewModel) {
 @Composable
 private fun WeekHeader(
     monday: LocalDate,
+    weekNumber: Int,
     isCurrentWeek: Boolean,
     onPrev: () -> Unit,
     onNext: () -> Unit,
     onToday: () -> Unit,
 ) {
-    Row(Modifier.fillMaxWidth().height(40.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onPrev) {
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Предыдущая неделя")
         }
@@ -365,11 +374,22 @@ private fun WeekHeader(
                 },
                 label = "week",
             ) { m ->
-                Text(
-                    "${m.format(DM)} – ${m.plusDays(6).format(DM)}",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        "${m.format(DM)} – ${m.plusDays(6).format(DM)}",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    // чётная / нечётная неделя — цветной меткой
+                    val even = WeekParity.isEven(weekNumber)
+                    val cs = MaterialTheme.colorScheme
+                    Text(
+                        "$weekNumber-я неделя · ${if (even) "ЧЁТНАЯ" else "НЕЧЁТНАЯ"}",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = if (even) cs.primary else cs.tertiary,
+                    )
+                }
             }
         }
         AnimatedVisibility(visible = !isCurrentWeek, enter = scaleIn() + fadeIn(), exit = scaleOut() + fadeOut()) {
