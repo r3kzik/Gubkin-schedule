@@ -20,6 +20,8 @@ object AppSync {
         runCatching { ReminderScheduler.schedule(ctx) }
         runCatching { com.vadik.raspisanie.widget.WidgetKit.updateAll(ctx) }
         runCatching { LessonNow.update(ctx) }
+        runCatching { MorningSummary.schedule(ctx) }
+        runCatching { CalendarSync.autoSync(ctx) }
     }
 }
 
@@ -104,6 +106,7 @@ object ReminderScheduler {
 /** Срабатывает по будильнику: показывает напоминание и планирует следующее. */
 class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action == MorningSummary.ACTION) MorningSummary.show(context)
         if (intent.action == ReminderScheduler.ACTION_REMIND) {
             val title = intent.getStringExtra(ReminderScheduler.EXTRA_TITLE) ?: "Скоро пара"
             val text = intent.getStringExtra(ReminderScheduler.EXTRA_TEXT).orEmpty()

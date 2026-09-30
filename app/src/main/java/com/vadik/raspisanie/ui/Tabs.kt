@@ -1,6 +1,7 @@
 package com.vadik.raspisanie.ui
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
@@ -17,13 +18,14 @@ object Tabs {
     const val TEACHERS = "teachers"
     const val MAP = "map"
     const val SETTINGS = "settings"
+    const val TOOLS = "tools"
     const val MORE = "more"
 
     /** Разделы, которые можно вынести на нижнюю панель (в этом порядке). */
-    val OPTIONAL = listOf(SUBJECTS, TEACHERS, MAP, SETTINGS)
+    val OPTIONAL = listOf(SUBJECTS, TEACHERS, MAP, TOOLS, SETTINGS)
     const val MAX_EXTRA = 3
 
-    private val ORDER = listOf(SCHEDULE, SUBJECTS, TEACHERS, MAP, MORE, SETTINGS)
+    private val ORDER = listOf(SCHEDULE, SUBJECTS, TEACHERS, MAP, TOOLS, MORE, SETTINGS)
     fun order(id: String) = ORDER.indexOf(id)
 
     fun title(id: String) = when (id) {
@@ -31,6 +33,7 @@ object Tabs {
         TEACHERS -> "Преподы"
         MAP -> "Карта"
         SETTINGS -> "Настройки"
+        TOOLS -> "Сервис"
         MORE -> "Другое"
         else -> "Расписание"
     }
@@ -39,6 +42,7 @@ object Tabs {
         TEACHERS -> "Преподаватели"
         MAP -> "Карта кампуса"
         SUBJECTS -> "Предметы и ДЗ"
+        TOOLS -> "Копия, календарь, сводка"
         else -> title(id)
     }
 
@@ -47,6 +51,7 @@ object Tabs {
         TEACHERS -> "Где и когда пары у любого преподавателя"
         MAP -> "Корпуса, этажи и где найти аудиторию"
         SETTINGS -> "Группа, уведомления, оформление, виджеты"
+        TOOLS -> "Резервная копия, экспорт в календарь, утренняя сводка"
         else -> ""
     }
 
@@ -55,6 +60,7 @@ object Tabs {
         TEACHERS -> Icons.Filled.Person
         MAP -> Icons.Filled.Place
         SETTINGS -> Icons.Filled.Settings
+        TOOLS -> Icons.Filled.Build
         MORE -> Icons.Filled.Menu
         else -> Icons.Filled.DateRange
     }

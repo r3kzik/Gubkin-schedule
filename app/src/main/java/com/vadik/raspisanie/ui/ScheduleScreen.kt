@@ -209,6 +209,7 @@ private fun MainTabs(state: UiState, vm: MainViewModel) {
                 Tabs.MAP -> MapScreen(state, vm)
                 Tabs.SETTINGS -> SettingsScreen(state, vm)
                 Tabs.MORE -> MoreScreen(state, vm)
+                Tabs.TOOLS -> ToolsScreen(state, vm)
                 else -> ScheduleScreen(state, vm)
             }
         }
@@ -345,7 +346,7 @@ fun ScheduleScreen(state: UiState, vm: MainViewModel) {
             state = pagerState,
             modifier = Modifier.weight(1f).fillMaxWidth().fadeEdges(40f, 70f),
         ) { page ->
-            DayPage(days[page], today, state.week, state.refreshing, state.prefs, state.homework, updatedText(state.week?.fetchedAt), onWhere = { vm.showOnMap(it.room) }, groupName = settings.groupName, onAdd = { vm.openPersonalEditor(it) }) { d, l -> vm.openLesson(d, l) }
+            DayPage(days[page], today, state.week, state.refreshing, state.prefs, state.homework, updatedText(state.week?.fetchedAt), onWhere = { vm.showOnMap(it.room) }, groupName = settings.groupName, onAdd = { vm.openPersonalEditor(it) }, noteKeys = state.notes.keys) { d, l -> vm.openLesson(d, l) }
         }
 
     }
@@ -511,6 +512,7 @@ private fun DayPage(
     onWhere: (Lesson) -> Unit,
     groupName: String? = null,
     onAdd: (LocalDate) -> Unit = {},
+    noteKeys: Set<String> = emptySet(),
     onOpen: (LocalDate, Lesson) -> Unit,
 ) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
@@ -617,6 +619,7 @@ private fun DayPage(
                 minutesLeft = e - nowMin,
                 nextIn = nextIn,
                 otherSubgroup = other,
+                hasNote = com.vadik.raspisanie.data.LessonNote.keyOf(date, l) in noteKeys,
                 onWhere = { onWhere(l) },
                 modifier = appearMod,
             ) { onOpen(date, l) }
@@ -799,6 +802,7 @@ private fun LessonCard(
     nextIn: String?,
     otherSubgroup: Boolean,
     modifier: Modifier = Modifier,
+    hasNote: Boolean = false,
     onWhere: () -> Unit = {},
     onClick: () -> Unit,
 ) {
@@ -875,6 +879,10 @@ private fun LessonCard(
                         l.subgroup?.let {
                             Spacer(Modifier.width(6.dp))
                             SubgroupBadge(it, otherSubgroup)
+                        }
+                        if (hasNote) {
+                            Spacer(Modifier.width(6.dp))
+                            Chip("📎 заметка", cs.secondary.copy(alpha = 0.14f), cs.secondary)
                         }
                     }
                     Spacer(Modifier.height(8.dp))

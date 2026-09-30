@@ -117,6 +117,12 @@ data class Prefs(
     val ongoingLesson: Boolean = false,
     /** Форма нижней панели: island (островок, по умолчанию) | rounded (закруглённая) | auto (как в стиле). */
     val tabBarShape: String = "island",
+    /** Утренняя сводка: включена и во сколько. */
+    val morningEnabled: Boolean = true,
+    val morningTime: String = "7:30",
+    /** Календарь телефона для экспорта (-1 — не выбран) и автообновление. */
+    val calendarId: Long = -1L,
+    val calendarAuto: Boolean = false,
 ) {
     /** Пара другой подгруппы (не моей). */
     fun isOtherSubgroup(l: Lesson): Boolean =

@@ -21,6 +21,10 @@ import com.vadik.raspisanie.data.WeekSchedule
 import com.vadik.raspisanie.data.UpdateInfo
 import com.vadik.raspisanie.data.Teacher
 import com.vadik.raspisanie.data.PersonalEvent
+import com.vadik.raspisanie.data.LessonNote
+import com.vadik.raspisanie.data.CalendarExport
+import com.vadik.raspisanie.work.CalendarSync
+import com.vadik.raspisanie.work.MorningSummary
 import com.vadik.raspisanie.data.TeacherWeek
 import com.vadik.raspisanie.security.Integrity
 import com.vadik.raspisanie.work.Updater
@@ -153,6 +157,11 @@ data class UiState(
     /** Свои дела пользователя. */
     val personal: List<PersonalEvent> = emptyList(),
     val personalDraft: PersonalDraft? = null,
+    /** Заметки и фото к парам (ключ — дата|время|предмет). */
+    val notes: Map<String, LessonNote> = emptyMap(),
+    /** Сообщение вкладки «Инструменты» (итог копии/экспорта). */
+    val toolsMessage: String? = null,
+    val toolsBusy: Boolean = false,
     val teachers: TeachersState = TeachersState(),
     /** Приложение подписано чужим ключом — это не оригинальный MyGub. */
     val tampered: Boolean = false,
@@ -190,7 +199,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (prefs.autoUpdateCheck) launch { checkUpdates(manual = false) }
             val hw = withContext(Dispatchers.IO) { repo.homework() }
             val personal = withContext(Dispatchers.IO) { repo.personal() }
-            _state.update { it.copy(prefs = prefs, homework = hw, personal = personal) }
+            val notes = withContext(Dispatchers.IO) { repo.notes() }
+            _state.update { it.copy(prefs = prefs, homework = hw, personal = personal, notes = notes) }
             if (s == null) {
                 _state.update { it.copy(starting = false) }
                 startOnboarding()
@@ -769,6 +779,124 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // ------------------------------------------------------------ карточка пары
+
+    // ------------------------------------------------------------ заметки и фото к парам
+
+    fun saveNoteText(key: String, text: String) {
+        val old = _state.value.notes[key] ?: LessonNote(key)
+        val n = old.copy(text = text, updatedAt = System.currentTimeMillis())
+        _state.update { it.copy(notes = if (n.isEmpty) it.notes - key else it.notes + (key to n)) }
+        viewModelScope.launch(Dispatchers.IO) { repo.saveNote(n) }
+    }
+
+    /** Файл для снимка камерой (камера сохранит фото прямо сюда). */
+    fun newPhotoFile(): java.io.File = java.io.File(repo.photosDir(), "p_${System.currentTimeMillis()}.jpg")
+
+    /** Снимок камерой готов: уменьшаем и прикрепляем к паре. */
+    fun attachTakenPhoto(key: String, file: java.io.File) {
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) { file.exists() && file.length() > 0 && Photos.shrinkInPlace(file) }
+            if (!ok) { file.delete(); return@launch }
+            addPhotoName(key, file.name)
+        }
+    }
+
+    /** Фото из галереи: копируем к себе (уменьшенным), чтобы оно не пропало, если удалить из галереи. */
+    fun attachGalleryPhoto(key: String, uri: android.net.Uri) {
+        viewModelScope.launch {
+            val f = newPhotoFile()
+            val ok = withContext(Dispatchers.IO) { Photos.copyShrunk(app, uri, f) }
+            if (ok) addPhotoName(key, f.name)
+        }
+    }
+
+    private suspend fun addPhotoName(key: String, name: String) {
+        val old = _state.value.notes[key] ?: LessonNote(key)
+        val n = old.copy(photos = old.photos + name, updatedAt = System.currentTimeMillis())
+        _state.update { it.copy(notes = it.notes + (key to n)) }
+        withContext(Dispatchers.IO) { repo.saveNote(n) }
+    }
+
+    fun deletePhoto(key: String, name: String) {
+        viewModelScope.launch {
+            val all = withContext(Dispatchers.IO) { repo.deletePhoto(key, name) }
+            _state.update { it.copy(notes = all) }
+        }
+    }
+
+    fun photoFile(name: String) = java.io.File(repo.photosDir(), name)
+
+    // ------------------------------------------------------------ резервная копия, календарь, сводка
+
+    fun dismissToolsMessage() = _state.update { it.copy(toolsMessage = null) }
+
+    private fun tools(block: suspend () -> String) {
+        _state.update { it.copy(toolsBusy = true, toolsMessage = null) }
+        viewModelScope.launch {
+            val msg = try {
+                block()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                "Не получилось: ${e.message ?: e.javaClass.simpleName}"
+            }
+            _state.update { it.copy(toolsBusy = false, toolsMessage = msg) }
+        }
+    }
+
+    fun exportBackup(uri: android.net.Uri) = tools {
+        withContext(Dispatchers.IO) {
+            app.contentResolver.openOutputStream(uri)?.use { repo.exportBackup(it, appVersion(app)) }
+                ?: throw java.io.IOException("не удалось открыть файл")
+        }
+        "Копия сохранена. Храните файл в надёжном месте (облако, Telegram «Избранное»)."
+    }
+
+    fun importBackup(uri: android.net.Uri) = tools {
+        val r = withContext(Dispatchers.IO) {
+            app.contentResolver.openInputStream(uri)?.use { repo.importBackup(it) }
+                ?: throw java.io.IOException("не удалось открыть файл")
+        }
+        // перечитываем всё восстановленное
+        val (s, prefs) = withContext(Dispatchers.IO) { repo.settings() to repo.prefs() }
+        val hw = withContext(Dispatchers.IO) { repo.homework() }
+        val personal = withContext(Dispatchers.IO) { repo.personal() }
+        val notes = withContext(Dispatchers.IO) { repo.notes() }
+        _state.update { it.copy(settings = s ?: it.settings, prefs = prefs, homework = hw, personal = personal, notes = notes, week = null) }
+        withContext(Dispatchers.IO) { AppSync.afterDataChange(app) }
+        showWeek(_state.value.selectedDate)
+        "Восстановлено: файлов ${r.files}, фото ${r.photos}."
+    }
+
+    fun calendars(): List<CalendarSync.Calendar> = CalendarSync.calendars(app)
+
+    fun exportToCalendar(calendarId: Long, auto: Boolean) = tools {
+        val s = _state.value.settings ?: throw IllegalStateException("сначала выберите группу")
+        updatePrefs { it.copy(calendarId = calendarId, calendarAuto = auto) }
+        val n = withContext(Dispatchers.IO) { CalendarSync.export(app, calendarId, repo.calendarEvents(s.groupId)) }
+        if (n == 0) "Событий для экспорта нет — сначала загрузите расписание."
+        else "В календарь добавлено событий: $n." + if (auto) " Дальше календарь будет обновляться сам." else ""
+    }
+
+    fun clearCalendar() = tools {
+        val id = _state.value.prefs.calendarId
+        updatePrefs { it.copy(calendarAuto = false) }
+        val n = if (id >= 0) withContext(Dispatchers.IO) { CalendarSync.clear(app, id) } else 0
+        "Удалено будущих событий MyGub: $n."
+    }
+
+    /** Файл .ics для отправки или импорта в любой календарь. */
+    fun icsFile(): java.io.File? {
+        val s = _state.value.settings ?: return null
+        val events = repo.calendarEvents(s.groupId)
+        if (events.isEmpty()) return null
+        val dir = java.io.File(app.cacheDir, "share").apply { mkdirs() }
+        return java.io.File(dir, "mygub.ics").apply { writeText(CalendarExport.ics(events)) }
+    }
+
+    fun showMorningNow() {
+        viewModelScope.launch(Dispatchers.IO) { MorningSummary.show(app, force = true) }
+    }
 
     // ------------------------------------------------------------ свои дела
 

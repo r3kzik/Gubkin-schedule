@@ -64,6 +64,10 @@ class Storage(private val dir: File) {
             autoUpdateCheck = o["updCheck"]?.let { it.truthy() } ?: d.autoUpdateCheck,
             autoInstall = o["updAuto"]?.let { it.truthy() } ?: d.autoInstall,
             tabBarShape = o["barShape2"].str() ?: d.tabBarShape,
+            morningEnabled = o["morning"]?.let { it.truthy() } ?: d.morningEnabled,
+            morningTime = o["morningTime"].str() ?: d.morningTime,
+            calendarId = o["calId"].str()?.toLongOrNull() ?: d.calendarId,
+            calendarAuto = o["calAuto"]?.let { it.truthy() } ?: d.calendarAuto,
             ongoingLesson = o["nowNotif2"]?.let { it.truthy() } ?: d.ongoingLesson,
             bottomTabs = o["tabs2"].str()?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() } ?: d.bottomTabs,
         )
@@ -93,6 +97,10 @@ class Storage(private val dir: File) {
             put("tabs2", p.bottomTabs.joinToString(","))
             put("nowNotif2", p.ongoingLesson)
             put("barShape2", p.tabBarShape)
+            put("morning", p.morningEnabled)
+            put("morningTime", p.morningTime)
+            put("calId", p.calendarId)
+            put("calAuto", p.calendarAuto)
         }
         writeAtomic(prefsFile, o.toString())
     }
@@ -152,6 +160,41 @@ class Storage(private val dir: File) {
 
     fun saveProbe(m: Map<String, Long>) {
         writeAtomic(probeFile, buildJsonObject { m.forEach { (k, v) -> put(k, v) } }.toString())
+    }
+
+    /** Папка с данными — для резервной копии. */
+    val dataDir: File get() = dir
+
+    // ------------------------------------------------------------ заметки и фото к парам
+
+    private val notesFile get() = File(dir, "notes.json")
+    val photosDir: File get() = File(dir, Backup.PHOTOS_DIR).apply { mkdirs() }
+
+    fun loadNotes(): Map<String, LessonNote> = try {
+        Json.parseToJsonElement(notesFile.readText()).arr().orEmpty().mapNotNull { e ->
+            val o = e.obj() ?: return@mapNotNull null
+            val key = o["key"].str() ?: return@mapNotNull null
+            LessonNote(
+                key = key,
+                text = o["text"].str().orEmpty(),
+                photos = o["photos"].arr().orEmpty().mapNotNull { it.str() },
+                updatedAt = o["at"].str()?.toLongOrNull() ?: 0L,
+            )
+        }.associateBy { it.key }
+    } catch (e: Exception) {
+        emptyMap()
+    }
+
+    fun saveNotes(notes: Map<String, LessonNote>) {
+        val arr = buildJsonArray {
+            notes.values.filter { !it.isEmpty }.forEach { n ->
+                add(buildJsonObject {
+                    put("key", n.key); put("text", n.text); put("at", n.updatedAt)
+                    put("photos", buildJsonArray { n.photos.forEach { add(JsonPrimitive(it)) } })
+                })
+            }
+        }
+        writeAtomic(notesFile, arr.toString())
     }
 
     private val personalFile get() = File(dir, "personal.json")

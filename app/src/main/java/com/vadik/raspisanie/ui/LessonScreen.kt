@@ -153,6 +153,11 @@ fun LessonScreen(detail: LessonDetail, state: UiState, vm: MainViewModel, onBack
                 l.info?.let { InfoLine("Доп. информация", it) }
             }
 
+            // ---------------- заметки и фото
+            DetailCard {
+                LessonNotesSection(com.vadik.raspisanie.data.LessonNote.keyOf(detail.date, l), state, vm)
+            }
+
             // ---------------- изменения
             DetailCard {
                 Text("Изменения", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)

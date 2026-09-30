@@ -25,6 +25,41 @@ class Repository(
     /** Только расписание с сайта (без своих дел). */
     fun siteWeek(groupId: String, date: LocalDate): WeekSchedule? = storage.loadWeek(groupId, mondayOf(date))
 
+    // ------------------------------------------------------------ заметки и фото
+
+    fun notes(): Map<String, LessonNote> = storage.loadNotes()
+
+    fun photosDir() = storage.photosDir
+
+    fun saveNote(n: LessonNote): Map<String, LessonNote> {
+        val all = storage.loadNotes().toMutableMap()
+        if (n.isEmpty) all.remove(n.key) else all[n.key] = n
+        storage.saveNotes(all)
+        return all
+    }
+
+    /** Удалить фото (файл и ссылку в заметке). */
+    fun deletePhoto(key: String, name: String): Map<String, LessonNote> {
+        java.io.File(storage.photosDir, name).delete()
+        val n = storage.loadNotes()[key] ?: return storage.loadNotes()
+        return saveNote(n.copy(photos = n.photos - name, updatedAt = clock()))
+    }
+
+    // ------------------------------------------------------------ резервная копия и календарь
+
+    fun exportBackup(out: java.io.OutputStream, version: String) = Backup.export(storage.dataDir, out, version)
+
+    fun importBackup(input: java.io.InputStream): Backup.Result = Backup.import(storage.dataDir, input)
+
+    /** События для календаря: все сохранённые недели начиная с сегодня + свои дела на 8 недель вперёд. */
+    fun calendarEvents(groupId: String, from: LocalDate = LocalDate.now()): List<CalEvent> {
+        val prefs = storage.loadPrefs()
+        val mondays = (storage.allWeeks(groupId).map { it.monday } + (0L until 8L).map { mondayOf(from).plusWeeks(it) })
+            .filter { !it.isBefore(mondayOf(from)) }.distinct().sorted()
+        val weeks = mondays.mapNotNull { cachedWeek(groupId, it) }
+        return CalendarExport.events(weeks, prefs, from)
+    }
+
     // ------------------------------------------------------------ свои дела
 
     fun personal(): List<PersonalEvent> = storage.loadPersonal()
