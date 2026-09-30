@@ -129,6 +129,41 @@ class Repository(
      * Предметы из сохранённых недель: название, ближайшая пара (после [after]),
      * типы занятий и преподаватели. Отменённые/перенесённые и чужие подгруппы не считаются.
      */
+    /** Будущая пара по предмету; predicted — угадана по двухнедельному циклу (неделя ещё не загружена). */
+    data class UpcomingLesson(val date: LocalDate, val start: String, val predicted: Boolean)
+
+    /**
+     * Ближайшие пары предмета — для выбора срока ДЗ. Известные берутся из загруженных недель,
+     * дальше — по чётности: расписание повторяется каждые две недели.
+     */
+    fun upcomingLessons(
+        groupId: String, subject: String, prefs: Prefs,
+        now: java.time.LocalDateTime = java.time.LocalDateTime.now(), limit: Int = 6,
+    ): List<UpcomingLesson> {
+        val weeks = storage.allWeeks(groupId)
+        if (weeks.isEmpty()) return emptyList()
+        val known = weeks.flatMap { w ->
+            (0L until 7L).flatMap { i ->
+                val d = w.monday.plusDays(i)
+                w.lessonsOn(d).filter { it.subject == subject && prefs.concernsMe(it) && it.personalId == null }
+                    .map { d to it }
+            }
+        }
+        val lastKnownDay = weeks.maxOf { it.monday }.plusDays(6)
+        val nowMin = now.hour * 60 + now.minute
+        fun isFuture(d: LocalDate, start: String) = d.isAfter(now.toLocalDate()) || (d == now.toLocalDate() && timeKey(start) > nowMin)
+        val real = known.filter { (d, l) -> !l.cancelled && !l.moved && isFuture(d, l.start) }
+            .map { (d, l) -> UpcomingLesson(d, l.start, false) }
+        // прогноз: те же дни через 2, 4, 6… недель — только после последней загруженной недели
+        val predicted = known.filter { (_, l) -> !l.cancelled }
+            .flatMap { (d, l) -> (1..8).map { k -> UpcomingLesson(d.plusWeeks(2L * k), l.start, true) } }
+            .filter { it.date.isAfter(lastKnownDay) }
+        return (real + predicted)
+            .distinctBy { it.date }
+            .sortedWith(compareBy({ it.date }, { timeKey(it.start) }))
+            .take(limit)
+    }
+
     fun subjects(groupId: String, prefs: Prefs, after: LocalDate = LocalDate.now()): List<SubjectInfo> {
         data class Occ(val date: LocalDate, val lesson: Lesson)
         val occ = mutableListOf<Occ>()

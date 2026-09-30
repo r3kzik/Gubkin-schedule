@@ -343,14 +343,40 @@ fun HomeworkEditorDialog(draft: HomeworkDraft, vm: MainViewModel) {
                 Spacer(Modifier.height(12.dp))
                 Text("Срок: ${dueLabel(due, today)}", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(8.dp))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    draft.nextLesson?.let { n ->
-                        GlassPill("К след. паре (${dueLabel(n, today)})", selected = due == n) { due = n }
+                // к любой из ближайших пар этого предмета
+                val lessons = draft.upcoming.ifEmpty {
+                    listOfNotNull(draft.nextLesson?.let { com.vadik.raspisanie.data.Repository.UpcomingLesson(it, "", false) })
+                }
+                if (lessons.isNotEmpty()) {
+                    Text("К паре", style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant)
+                    Spacer(Modifier.height(6.dp))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        lessons.forEachIndexed { i, u ->
+                            val label = (if (u.predicted) "≈ " else "") + dueLabel(u.date, today) +
+                                if (i == 0) " · следующая" else ""
+                            GlassPill(label, selected = due == u.date) { due = u.date }
+                        }
                     }
+                    if (lessons.any { it.predicted }) {
+                        Text(
+                            "≈ — по чётности недель: эти недели ещё не загружены",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = cs.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
+                    Spacer(Modifier.height(10.dp))
+                }
+                Text("Или", style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant)
+                Spacer(Modifier.height(6.dp))
+                val quick = setOf(today.plusDays(1), today.plusWeeks(1), today.plusWeeks(2))
+                val custom = due != null && due !in quick && lessons.none { it.date == due }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     GlassPill("Завтра", selected = due == today.plusDays(1)) { due = today.plusDays(1) }
                     GlassPill("Через неделю", selected = due == today.plusWeeks(1)) { due = today.plusWeeks(1) }
+                    GlassPill("Через 2 недели", selected = due == today.plusWeeks(2)) { due = today.plusWeeks(2) }
                     GlassPill("Без срока", selected = due == null) { due = null }
-                    GlassPill("Дата…", selected = false) { picking = true }
+                    GlassPill(if (custom) "📅 ${dueLabel(due, today)}" else "📅 Выбрать дату", selected = custom) { picking = true }
                 }
                 if (draft.id != null) {
                     Spacer(Modifier.height(10.dp))

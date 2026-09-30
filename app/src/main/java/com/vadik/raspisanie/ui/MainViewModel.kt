@@ -76,6 +76,8 @@ data class HomeworkDraft(
     val due: LocalDate?,
     /** Дата ближайшей пары по предмету — для кнопки «К следующей паре». */
     val nextLesson: LocalDate?,
+    /** Ближайшие пары предмета (с прогнозом по чётности недель) — чтобы задать ДЗ на любую из них. */
+    val upcoming: List<Repository.UpcomingLesson> = emptyList(),
 )
 
 /** Открытая карточка пары. */
@@ -537,7 +539,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun openHomeworkEditor(subject: String, existing: Homework? = null) {
         val s = _state.value.settings
         viewModelScope.launch {
-            val next = if (s == null) null else withContext(Dispatchers.IO) {
+            val upcoming = if (s == null) emptyList() else withContext(Dispatchers.IO) {
+                repo.upcomingLessons(s.groupId, subject, _state.value.prefs)
+            }
+            val next = upcoming.firstOrNull()?.date ?: if (s == null) null else withContext(Dispatchers.IO) {
                 repo.subjects(s.groupId, _state.value.prefs).firstOrNull { it.name == subject }?.nextDate
             }
             _state.update {
@@ -548,6 +553,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         text = existing?.text.orEmpty(),
                         due = existing?.due ?: next,
                         nextLesson = next,
+                        upcoming = upcoming,
                     ),
                 )
             }
