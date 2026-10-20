@@ -210,6 +210,7 @@ private fun MainTabs(state: UiState, vm: MainViewModel) {
                 Tabs.SETTINGS -> SettingsScreen(state, vm)
                 Tabs.MORE -> MoreScreen(state, vm)
                 Tabs.TOOLS -> ToolsScreen(state, vm)
+                Tabs.GAMES -> if (com.vadik.raspisanie.data.Edition.beta) GamesScreen() else ScheduleScreen(state, vm)
                 else -> ScheduleScreen(state, vm)
             }
         }

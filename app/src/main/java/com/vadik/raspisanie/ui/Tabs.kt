@@ -7,6 +7,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.vadik.raspisanie.data.Prefs
@@ -20,12 +21,16 @@ object Tabs {
     const val SETTINGS = "settings"
     const val TOOLS = "tools"
     const val MORE = "more"
+    /** Только в бете — ради развлечения. */
+    const val GAMES = "games"
 
     /** Разделы, которые можно вынести на нижнюю панель (в этом порядке). */
-    val OPTIONAL = listOf(SUBJECTS, TEACHERS, MAP, TOOLS, SETTINGS)
+    val OPTIONAL: List<String>
+        get() = listOf(SUBJECTS, TEACHERS, MAP, TOOLS) +
+            (if (com.vadik.raspisanie.data.Edition.beta) listOf(GAMES) else emptyList()) + SETTINGS
     const val MAX_EXTRA = 3
 
-    private val ORDER = listOf(SCHEDULE, SUBJECTS, TEACHERS, MAP, TOOLS, MORE, SETTINGS)
+    private val ORDER = listOf(SCHEDULE, SUBJECTS, TEACHERS, MAP, TOOLS, GAMES, MORE, SETTINGS)
     fun order(id: String) = ORDER.indexOf(id)
 
     fun title(id: String) = when (id) {
@@ -34,6 +39,7 @@ object Tabs {
         MAP -> "Карта"
         SETTINGS -> "Настройки"
         TOOLS -> "Сервис"
+        GAMES -> "Игры"
         MORE -> "Другое"
         else -> "Расписание"
     }
@@ -52,6 +58,7 @@ object Tabs {
         MAP -> "Корпуса, этажи и где найти аудиторию"
         SETTINGS -> "Группа, уведомления, оформление, виджеты"
         TOOLS -> "Резервная копия, экспорт в календарь, утренняя сводка"
+        GAMES -> "Тетрис и симулятор апгрейдера — только в бете, ради развлечения"
         else -> ""
     }
 
@@ -61,6 +68,7 @@ object Tabs {
         MAP -> Icons.Filled.Place
         SETTINGS -> Icons.Filled.Settings
         TOOLS -> Icons.Filled.Build
+        GAMES -> Icons.Filled.PlayArrow
         MORE -> Icons.Filled.Menu
         else -> Icons.Filled.DateRange
     }

@@ -15,8 +15,14 @@ object Edition {
     /** Стили без полупрозрачного стекла — только они доступны в Lite. */
     val LITE_STYLES = setOf("material", "ios", "amoled", "paper", "catppuccin", "nord", "mono")
 
+    /** true в MyGub Beta — только там есть вкладка «Игры». */
+    @Volatile
+    var beta: Boolean = false
+        private set
+
     fun init(ctx: Context) {
         lite = ctx.packageName.endsWith(".lite")
+        beta = ctx.packageName.endsWith(".beta")
     }
 
     /** Настройки с учётом редакции: в Lite стеклянные стили заменяются на Material. */
